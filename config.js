@@ -12,7 +12,7 @@ module.exports = {
 SESSION_ID: process.env.SESSION_ID || "",
 PREFIX: getConfig("PREFIX") || ".",
 CHATBOT: getConfig("CHATBOT") || "off",
-BOT_NAME: process.env.BOT_NAME || getConfig("BOT_NAME") || "VERONICA AI",
+BOT_NAME: process.env.BOT_NAME || getConfig("BOT_NAME") || "ᴘʀɪᴍᴇ ʀɪᴅᴢ",
 MODE: getConfig("MODE") || process.env.MODE || "public",// Bot mode: public/private/group/inbox
 BAILEYS: process.env.BAILEYS || "@whiskeysockets/baileys",
 
@@ -29,10 +29,10 @@ DEVELOPER_NUMBER: '256777205718@s.whatsapp.net',
 
 
 AUTO_REPLY: process.env.AUTO_REPLY || "false",
-AUTO_STATUS_REPLY: process.env.AUTO_STATUS_REPLY || "false",
-AUTO_STATUS_MSG: process.env.AUTO_STATUS_MSG || "*VERONICA AI VIEWED YOUR STATUS 🧚‍♀️*",
+AUTO_STATUS_REPLY: process.env.AUTO_STATUS_REPLY || "true",
+AUTO_STATUS_MSG: process.env.AUTO_STATUS_MSG || "*ᴘʀɪᴍᴇ ʀɪᴅᴢ ʜᴀꜱ ᴠɪᴇᴡᴇᴅ ʏᴏᴜʀ ꜱᴛᴀᴛᴜꜱ 🧚‍♀️*",
 READ_MESSAGE: process.env.READ_MESSAGE || "false",
-REJECT_MSG: process.env.REJECT_MSG || "> *Hello am Veronica Assistant📞 🙃Your call could not be completed as you lack the necessary authorization to contact this number.📵*",
+REJECT_MSG: process.env.REJECT_MSG || "> *Hello am Ridz  Assistant📞 🙃Your call could not be completed as you lack the necessary authorization to contact this number.📵*",
 
 
 // = REACTION & STICKER SETTINGS =
@@ -41,7 +41,7 @@ AUTO_REACT: process.env.AUTO_REACT || "true",
 OWNER_REACT: process.env.OWNER_REACT || "false",
 CUSTOM_REACT: process.env.CUSTOM_REACT || "false",
 CUSTOM_REACT_EMOJIS: getConfig("CUSTOM_REACT_EMOJIS") || process.env.CUSTOM_REACT_EMOJIS || "💝,💖,💗,❤️‍🩹,❤️,🧡,💛,💚,💙,💜,🤎,🖤,🤍",
-STICKER_NAME: process.env.STICKER_NAME || "ᴠᴇʀʀᴏɴɪᴄᴀ",
+STICKER_NAME: process.env.STICKER_NAME || "ᴘʀɪᴍᴇ ʀɪᴅᴢ",
 AUTO_STICKER: process.env.AUTO_STICKER || "false",
 
 // ===== MEDIA & AUTOMATION =====
@@ -49,7 +49,7 @@ AUTO_STICKER: process.env.AUTO_STICKER || "false",
 AUTO_RECORDING: process.env.AUTO_RECORDING || "false",
 AUTO_TYPING: process.env.AUTO_TYPING || "false",
 MENTION_REPLY: process.env.MENTION_REPLY || "false",
-MENU_IMAGE_URL: getConfig("MENU_IMAGE_URL") || "https://files.catbox.moe/mn9fgn.jpg",
+MENU_IMAGE_URL: getConfig("MENU_IMAGE_URL") || "https://files.catbox.moe/oyadfh.png",
 
 
 // == SECURITY & ANTI-FEATURES ==
