@@ -1,8 +1,8 @@
 {
-  "name": "VERONICA-AI",
+  "name": "PRIME-RIDZ",
   "description": "Javascript WhatsApp bot made by Ridz Coder",
-  "logo": "https://files.catbox.moe/mn9fgn.jpg",
-  "keywords": ["VERONICA"],
+  "logo": "https://files.catbox.moe/oyadfh.png",
+  "keywords": ["PRIME RIDZ"],
   "success_url": "/",
 
     "stack": "container",
@@ -16,7 +16,7 @@
     "STICKER_NAME": {
       "description": "type your sticker pack name.",
       "required": false,
-      "value": "VERONICA-AI"
+      "value": "PRIME-RIDZ"
     }, 
 
     "PREFIX": {
@@ -78,7 +78,7 @@
     "AUTO_STATUS_MSG": {
       "description": "Type custom message on status reply",
       "required": true,
-      "value": "*SEEN YOUR STATUS BY VERONICA AI*"
+      "value": "*SEEN YOUR STATUS BY PRIME RIDZ*"
 
      }, 
 
@@ -98,7 +98,7 @@
     "BOT_NAME": {
       "description": "Type here the bot name.",
       "required": false,
-      "value": "VERONICA-AI"
+      "value": "PRIME-RIDZ"
 
       }, 
 
@@ -124,7 +124,7 @@
     "MENU_IMAGE_URL": {
       "description": "add url for mention reply and menu if want.",
       "required": false,
-      "value": "https://files.catbox.moe/mn9fgn.jpg"
+      "value": "https://files.catbox.moe/oyadfh.png"
     },
 
      "DESCRIPTION": {
