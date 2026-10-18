@@ -350,14 +350,14 @@ cmd({
 },
 async (conn, mek, m, { from, reply, args }) => {
     try {
-        if (!args[0]) return reply("ᴘʟᴇᴀꜱᴇ ᴘʀᴏᴠɪᴅᴇ ᴀ ᴄɪᴛʏ ɴᴀᴍᴇ\nExample: .weather London");
+        if (!args[0]) return reply("ᴘʟᴇᴀꜱᴇ ᴘʀᴏᴠɪᴅᴇ ᴀ ᴄɪᴛʏ ɴᴀᴍᴇ\nᴇxᴀᴍᴘʟᴇ: .ᴡᴇᴀᴛʜᴇʀ ʟᴏɴᴅᴏɴ");
         
         const city = args.join(' ');
         const apiUrl = `https://apis.davidcyriltech.my.id/weather?city=${encodeURIComponent(city)}`;
         
         const { data } = await axios.get(apiUrl);
         
-        if (!data.success) return reply("ᴄᴏᴜɴᴅɴ'ᴛ ꜰᴇᴛᴄʜ ᴡᴇᴀᴛʜᴇʀ ᴅᴀᴛᴀ ꜰʀᴏᴍ ᴛʜᴀᴛ ʟᴏᴄᴀᴛɪᴏɴ");
+        if (!data.success) return reply("ᴄᴏᴜʟᴅɴ'ᴛ ꜰᴇᴛᴄʜ ᴡᴇᴀᴛʜᴇʀ ᴅᴀᴛᴀ ꜰʀᴏᴍ ᴛʜᴀᴛ ʟᴏᴄᴀᴛɪᴏɴ");
         
         const weatherInfo = `
 ╭━━━❏ *ᴡᴇᴀᴛʜᴇʀ ꜰᴏʀ ${data.data.location}, ${data.data.country}*
@@ -370,15 +370,39 @@ async (conn, mek, m, { from, reply, args }) => {
 ├•▣┃ ᴡɪɴᴅ ꜱᴘᴇᴇᴅ : ${data.data.wind_speed}
 ├•▣┃ ᴘʀᴇꜱꜱᴜʀᴇ : ${data.data.pressure}
 ├•▣┃ ᴄᴏᴏʀᴅɪɴᴀᴛᴇꜱ : ${data.data.coordinates.latitude}, ${data.data.coordinates.longitude}
-╰▬▬▬▬▬▬▬Rɪᴅᴢ Cᴏᴅᴇʀ❦▬▬▬▬▬▬▬❏
+╰▬▬▬▬▬▬▬▬▬▬▬▬▬▬❏
 > https://ridzcoder.xyz
 `.trim();
 
-        await reply(weatherInfo);
+        // CTA Buttons configuration
+        const buttons = [
+            {
+                name: 'cta_url',
+                buttonParamsJson: JSON.stringify({
+                    display_text: '📍 ᴠɪᴇᴡ ᴏɴ ᴍᴀᴘꜱ',
+                    url: `https://www.google.com/maps/search/?api=1&query=${data.data.coordinates.latitude},${data.data.coordinates.longitude}`
+                })
+            },
+            {
+                name: 'cta_url',
+                buttonParamsJson: JSON.stringify({
+                    display_text: '🌐 ᴠɪꜱɪᴛ ᴡᴇʙꜱɪᴛᴇ',
+                    url: 'https://ridzcoder.xyz'
+                })
+            }
+        ];
+
+        // Send text + buttons
+        await sendButtons(conn, from, {
+            title: '🌤 ᴡᴇᴀᴛʜᴇʀ ᴜᴘᴅᴀᴛᴇ',
+            text: weatherInfo,
+            footer: 'ᴘᴏᴡᴇʀᴇᴅ ʙʏ ʀɪᴅᴢᴄᴏᴅᴇʀ',
+            buttons: buttons
+        }, { quoted: mek });
         
     } catch (error) {
-        console.error('Weather Error:', error);
-        reply("ꜰᴀɪʟᴇᴅ ᴛᴏ ꜰᴇᴛᴄʜ ᴡᴇᴀᴛʜᴇʀ ᴅᴀᴛᴀ.ᴘʟᴇᴀꜱᴇ ᴛʀʏ ᴀɢᴀɪɴ ʟᴀᴛᴇʀ.");
+        console.error('ᴡᴇᴀᴛʜᴇʀ ᴇʀʀᴏʀ:', error);
+        reply("ꜰᴀɪʟᴇᴅ ᴛᴏ ꜰᴇᴛᴄʜ ᴡᴇᴀᴛʜᴇʀ ᴅᴀᴛᴀ. ᴘʟᴇᴀꜱᴇ ᴛʀʏ ᴀɢᴀɪɴ ʟᴀᴛᴇʀ.");
     }
 });
 
@@ -513,145 +537,7 @@ cmd({
         reply("ᴅᴏᴡɴʟᴏᴀᴅ ꜰᴀɪʟᴇᴅ. ᴛʀʏ ᴀɢᴀɪɴ ʟᴀᴛᴇʀ.");
     }
 });
-
-cmd({
-  pattern: "igdl4",
-  alias: ["instagram4", "insta4", "ig4", "igvideo4"],
-  react: '📶',
-  desc: "Download videos from Instagram (Alternative API)",
-  category: "download",
-  use: ".igdl2 <Instagram URL>",
-  filename: __filename
-}, async (conn, mek, m, { from, reply, args }) => {
-  try {
-    const igUrl = args[0];
-    if (!igUrl || !igUrl.includes("instagram.com")) {
-      return reply('ᴘʟᴇᴀꜱᴇ ᴘʀᴏᴠɪᴅᴇ ᴀ ᴠᴀʟɪᴅ ɪɴꜱᴛᴀɢʀᴀᴍ ᴜʀʟ. ᴇxᴀᴍᴘʟᴇ: `.igdl2 https://instagram.com/...`');
-    }
-
-    await conn.sendMessage(from, { react: { text: '⏳', key: m.key } });
-
-    const apiUrl = `https://bk9.fun/download/instagram?url=${encodeURIComponent(igUrl)}`;
-    const response = await axios.get(apiUrl);
-
-    if (!response.data?.status || !response.data?.BK9?.[0]?.url) {
-      await conn.sendMessage(from, { react: { text: '❌', key: m.key } });
-      return reply('ᴜɴᴀʙʟᴇ ᴛᴏ ꜰᴇᴛᴄʜ ᴠɪᴅᴇᴏ  . ᴛʀʏ .igdl2 ꜰᴏʀ ᴘʀɪᴍᴀʀʏ ᴅᴏᴡɴʟᴏᴀᴅ.');
-    }
-
-    const videoUrl = response.data.BK9[0].url;
-    await conn.sendMessage(from, { react: { text: '📶', key: m.key } });
-
-    const videoResponse = await axios.get(videoUrl, { responseType: 'arraybuffer' });
-    if (!videoResponse.data) {
-      await conn.sendMessage(from, { react: { text: '❌', key: m.key } });
-      return reply('ꜰᴀɪʟᴇᴅ ᴛᴏ ᴅᴏᴡɴʟᴏᴀᴅ the video. ᴘʟᴇᴀꜱᴇ ᴛʀʏ ᴀɢᴀɪɴ ʟᴀᴛᴇʀ.');
-    }
-
-    const videoBuffer = Buffer.from(videoResponse.data, 'binary');
-
-    await conn.sendMessage(from, {
-      video: videoBuffer,
-      caption: `*ɪɴꜱᴛᴀɢʀᴀᴍ ᴅᴏᴡɴʟᴏᴀᴅᴇʀ*\n\n` +
-        `-  *Qᴜʟɪᴛʀʏ*: ʜᴅ\n\n` +
-        `> *© Cʀᴇᴀᴛᴇᴅ ʙʏ ᴘʀɪᴍᴇ ʀɪᴅᴢ*`,
-    }, { quoted: anony });
-
-    await conn.sendMessage(from, { react: { text: '✅', key: m.key } });
-  } catch (error) {
-    console.error('Error downloading video:', error);
-    await conn.sendMessage(from, { react: { text: '❌', key: m.key } });
-    reply('ᴀᴘɪ ꜰᴀɪʟᴇᴅ. ᴛʀʏ .igdl ꜰᴏʀ ᴘʀɪᴍᴀʀʏ ᴅᴏᴡɴʟᴏᴀᴅ.');
-  }
-});
-
-cmd({
-  pattern: "instagram2",
-  alias: ["ig2", "instadl2"],
-  react: '📥',
-  desc: "Download videos from Instagram (API v5)",
-  category: "download",
-  use: ".igdl5 <Instagram video URL>",
-  filename: __filename
-}, async (conn, mek, m, { from, reply, args }) => {
-  try {
-    const igUrl = args[0];
-    if (!igUrl || !igUrl.includes("instagram.com")) {
-      return reply('ᴘʟᴇᴀꜱᴇ ᴘʀᴏᴠɪᴅᴇ ᴀ ᴠᴀʟɪᴅ ɪɴꜱᴛᴀɢʀᴀᴍ ᴠɪᴅᴇᴏ ᴜʀʟ.\n\nᴇxᴀᴍᴘʟᴇ:\n.igdl5 https://instagram.com/reel/...');
-    }
-
-    await conn.sendMessage(from, { react: { text: '⏳', key: m.key } });
-
-    const apiUrl = `https://jawad-tech.vercel.app/downloader?url=${encodeURIComponent(igUrl)}`;
-    const response = await axios.get(apiUrl);
-
-    const data = response.data;
-
-    if (!data.status || !data.result || !Array.isArray(data.result)) {
-      return reply('ᴜɴᴀʙʟᴇ ᴛᴏ ꜰᴇᴛᴄʜ ᴛʜᴇ ᴠɪᴅᴇᴏ. ᴘʟᴇᴀꜱᴇ ᴄʜᴇᴄᴋ ᴛʜᴇ ᴜʀʟ ᴀɴᴅ ᴛʀʏ ᴀɢᴀɪɴ ʟᴀᴛᴇʀ.');
-    }
-
-    const videoUrl = data.result[0];
-    if (!videoUrl) return reply("❌ ɴᴏ ᴠɪᴅᴇᴏ ꜰᴏᴜɴᴅ ɪɴ ᴛʜᴇ ᴀᴘɪ ʀᴇꜱᴘᴏɴꜱᴇ.");
-
-    const metadata = data.metadata || {};
-    const author = metadata.author || "Unknown";
-    const caption = metadata.caption ? metadata.caption.slice(0, 300) + "..." : "No caption provided.";
-    const likes = metadata.like || 0;
-    const comments = metadata.comment || 0;
-
-    await reply('ᴅᴏᴡɴʟᴏᴀᴅɪɴɢ ɪɴꜱᴛᴀɢʀᴀᴍ ᴠɪᴅᴇᴏ...ᴘʟᴇᴀꜱᴇ ᴡᴀɪᴛ.📥');
-
-    await conn.sendMessage(from, {
-      video: { url: videoUrl },
-      caption: `📥 *ɪɴꜱᴛᴀɢʀᴀᴍ ᴅᴏᴡɴʟᴏᴀᴅᴇʀ *\n👤 *ᴀᴜᴛʜᴏʀ:* ${author}\n💬 *ᴄᴀᴘᴛɪᴏɴ:* ${caption}\n❤️ *ʟɪᴋᴇꜱ:* ${likes} | 💭 *ᴄᴏᴍᴍᴇɴᴛꜱ:* ${comments}\n\n> Cʀᴇᴀᴛᴇᴅ ʙʏ ᴘʀɪᴍᴇ ʀɪᴅᴢ`
-    }, { quoted: anony });
-
-    await conn.sendMessage(from, { react: { text: '✅', key: m.key } });
-  } catch (error) {
-    console.error('IGDL5 Error:', error);
-    reply('ꜰᴀɪʟᴇᴅ ᴛᴏ ᴅᴏᴡɴʟᴏᴀᴅ ᴛʜᴇ ɪɴꜱᴛᴀɢʀᴀᴍ ᴠɪᴅᴇᴏ.ᴘʟᴇᴀꜱᴇ ᴛʀʏ ᴀɢᴀɪɴ ʟᴀᴛᴇʀ.');
-    await conn.sendMessage(from, { react: { text: '❌', key: m.key } });
-  }
-});
-cmd({
-    pattern: "instagram3",
-    alias: ["insta3", "ig3"],
-    desc: "Download Instagram video",
-    category: "downloader",
-    react: "⤵️",
-    filename: __filename
-},
-async (conn, mek, m, { from, args, q, reply }) => {
-    try {
-        if (!q) return reply("ᴘʟᴇᴀꜱᴇ ᴘʀᴏᴠɪᴅᴇ ᴀ ᴠᴀʟɪᴅ ɪɴꜱᴛᴀɢʀᴀᴍ ʟɪɴᴋ.");
-        if (!q.includes("instagram.com")) return reply("ɪɴᴠᴀʟɪᴅ ɪɴꜱᴛᴀɢʀᴀᴍ ʟɪɴᴋ.");
-        
-        reply("ᴅᴏᴡɴʟᴏᴀᴅɪɴɢ ᴠɪᴅᴇᴏ, ᴘʟᴇᴀꜱᴇ  ᴡᴀɪᴛ...");
-        
-        const apiUrl = `https://rest-lily.vercel.app/api/downloader/igdl?url=${q}`;
-        const { data } = await axios.get(apiUrl);
-        
-        if (!data.status || !data.data || !data.data[0]) return reply("ꜰᴀɪʟᴇᴅ ᴛᴏ ꜰᴇᴛᴄʜ ɪɴꜱᴛᴀɢʀᴀᴍ ᴠɪᴅᴇᴏ.");
-        
-        const { url } = data.data[0];
-        
-        const caption = 
-`ɪɴꜱᴛᴀɢʀᴀᴍ ᴅᴏᴡɴʟᴏᴀᴅᴇʀ*\n\n` +
-`ᴘᴏᴡᴇʀᴇᴅ ʙʏ ᴘʀɪᴍᴇ ʀɪᴅᴢ *`;
-        
-        await conn.sendMessage(from, {
-            video: { url: url },
-            caption: caption,
-            contextInfo: { mentionedJid: [m.sender] }
-        }, { quoted: anony });
-        
-    } catch (e) {
-        console.error("Error in Instagram downloader command:", e);
-        reply(`ᴀɴ ᴇʀʀᴏʀ ᴏᴄᴄᴜʀʀᴇᴅ: ${e.message}`);
-    }
-});
-                      
+                  
 cmd({
     pattern: "img",
     alias: ["image", "googleimage", "searchimg"],
@@ -2186,12 +2072,11 @@ async (conn, mek, m, { from, reply, args }) => {
     }
 });
 
-
 cmd({
     pattern: "tiktok",
     alias: ["ttdl", "tt", "tiktokdl"],
     desc: "Download TikTok video without watermark",
-    category: "downloader",
+    category: "download",
     react: "🎵",
     filename: __filename
 },
@@ -2202,111 +2087,147 @@ async (conn, mek, m, { from, args, q, reply }) => {
         
         reply("ᴅᴏᴡɴʟᴏᴀᴅɪɴɢ ᴠɪᴅᴇᴏ ᴘʟᴇᴀꜱᴇ ᴡᴀɪᴛ...");
         
-        const apiUrl = `https://delirius-apiofc.vercel.app/download/tiktok?url=${q}`;
-        const { data } = await axios.get(apiUrl);
+        const apiUrl = `https://api.siputzx.my.id/api/d/tiktok/v2?url=${encodeURIComponent(q)}`;
+        const response = await axios.get(apiUrl);
+        const res = response.data;
         
-        if (!data.status || !data.data) return reply("ꜰᴀɪʟᴇᴅ ᴛᴏ ꜰᴇᴛᴄʜ ᴛɪᴋᴛᴏᴋ ᴠɪᴅᴇᴏ.");
+        // Check if the API returned valid data
+        if (!res.status || !res.data) {
+            return reply("ꜰᴀɪʟᴇᴅ ᴛᴏ ꜰᴇᴛᴄʜ ᴛɪᴋᴛᴏᴋ ᴠɪᴅᴇᴏ. ᴍᴀᴋᴇ ꜱᴜʀᴇ ᴛʜᴇ ʟɪɴᴋ ɪꜱ ᴠᴀʟɪᴅ.");
+        }
+
+        const data = res.data;
         
-        const { title, like, comment, share, author, meta } = data.data;
-        const videoUrl = meta.media.find(v => v.type === "video").org;
+        // Extract data based on the new Siputzx API structure
+        const title = data.text || "ɴᴏ ᴛɪᴛʟᴇ";
+        const authorName = data.author_nickname || "ᴜɴᴋɴᴏᴡɴ ᴀᴜᴛʜᴏʀ";
+        const likes = data.like_count || "0";
+        const comments = data.comment_count || "0";
+        const shares = data.share_count || "0";
+        const plays = data.play_count || "0";
+        
+        // Prefer HD, fallback to normal no-watermark link
+        const videoUrl = data.no_watermark_link_hd || data.no_watermark_link;
+        const coverUrl = data.cover_link;
+
+        if (!videoUrl) {
+            return reply("ꜰᴀɪʟᴇᴅ ᴛᴏ ᴇxᴛʀᴀᴄᴛ ᴛʜᴇ ᴠɪᴅᴇᴏ ᴜʀʟ ꜰʀᴏᴍ ᴛʜᴇ ᴀᴘɪ.");
+        }
         
         const caption = `🎵 *ᴛɪᴋᴛᴏᴋ ᴠɪᴅᴇᴏ* 🎵\n\n` +
-                        `👤 *ᴜꜱᴇʀ:* ${author.nickname} (@${author.username})\n` +
+                        `👤 *ᴜꜱᴇʀ:* ${authorName}\n` +
                         `📖 *ᴛɪᴛʟᴇ:* ${title}\n` +
-                        `👍 *ʟɪᴋᴇꜱ:* ${like}\n💬 *ᴄᴏᴍᴍᴇɴᴛᴅ:* ${comment}\n🔁 *ꜱʜᴀʀᴇꜱ:* ${share}`;
+                        `▶️ *ᴘʟᴀʏꜱ:* ${plays}\n` +
+                        `👍 *ʟɪᴋᴇꜱ:* ${likes}\n` +
+                        `💬 *ᴄᴏᴍᴍᴇɴᴛꜱ:* ${comments}\n` +
+                        `🔁 *ꜱʜᴀʀᴇꜱ:* ${shares}`;
         
         await conn.sendMessage(from, {
             video: { url: videoUrl },
             caption: caption,
             contextInfo: { mentionedJid: [m.sender] }
         }, { quoted: anony });
+
+  
+        if (data.music_link) {
+            await conn.sendMessage(from, {
+                audio: { url: data.music_link },
+                mimetype: 'audio/mp4',
+                ptt: false
+            }, { quoted: anony });
+        }
+        */
         
     } catch (e) {
-        console.error("Error in TikTok downloader command:", e);
+        console.error("ᴇʀʀᴏʀ ɪɴ ᴛɪᴋᴛᴏᴋ ᴅᴏᴡɴʟᴏᴀᴅᴇʀ ᴄᴏᴍᴍᴀɴᴅ:", e);
         reply(`ᴀɴ ᴇʀʀᴏʀ ᴏᴄᴄᴜʀʀᴇᴅ: ${e.message}`);
     }
 });
-
+// --- Tiktok2 (PrinceTech API v1) ---
 cmd({
-    pattern: "tiktok",
+    pattern: "tiktok2",
     alias: ["ttdl2", "ttv2", "tt2"],
     desc: "Download TikTok video without watermark",
-    category: "downloader",
+    category: "download",
     react: "⬇️",
     filename: __filename
 }, async (conn, mek, m, { from, reply, args, q }) => {
     try {
-        // Validate input
         const url = q || m.quoted?.text;
         if (!url || !url.includes("tiktok.com")) {
             return reply("ᴘʟᴇᴀꜱᴇ ᴘʀᴏᴠɪᴅᴇ/ʀᴇᴘʟʏ ᴛᴏ ᴀ ᴛɪᴋᴛᴏᴋ ʟɪɴᴋ");
         }
 
-        // Show processing reaction
         await conn.sendMessage(from, { react: { text: '⏳', key: m.key } });
 
-        // Fetch video from BK9 API
-        const { data } = await axios.get(`https://bk9.fun/download/tiktok2?url=${encodeURIComponent(url)}`);
+        const apiUrl = `https://api.princetechn.com/api/download/tiktok?apikey=prince&url=${encodeURIComponent(url)}`;
+        const { data } = await axios.get(apiUrl);
         
-        if (!data?.status || !data.BK9?.video?.noWatermark) {
+        // Parse using PrinceTech API structure
+        if (!data || !data.success || !data.result || !data.result.video) {
             throw new Error("ɴᴏ ᴠɪᴅᴇᴏ ꜰᴏᴜɴᴅ ɪɴ ᴀᴘɪ ʀᴇꜱᴘᴏɴꜱᴇ");
         }
 
-        // Send video with minimal caption
+        const result = data.result;
+        const title = result.title ? result.title.slice(0, 200) : "ɴᴏ ᴄᴀᴘᴛɪᴏɴ";
+        const author = result.author?.name || "ᴜɴᴋɴᴏᴡɴ ᴀᴜᴛʜᴏʀ";
+
         await conn.sendMessage(from, {
-            video: { url: data.BK9.video.noWatermark },
-            caption: `- *Cʀᴇᴀᴛᴇᴅ ʙʏ ᴘʀɪᴍᴇ ʀɪᴅᴢ*`
+            video: { url: result.video },
+            caption: `🎬 *ᴛɪᴋᴛᴏᴋ ᴅᴏᴡɴʟᴏᴀᴅᴇʀ*\n👤 *ᴀᴜᴛʜᴏʀ:* ${author}\n💬 *ᴄᴀᴘᴛɪᴏɴ:* ${title}\n\n> ᴄʀᴇᴀᴛᴇᴅ ʙʏ ᴘʀɪᴍᴇ ʀɪᴅᴢ`
         }, { quoted: anony });
 
-        // Success reaction
         await conn.sendMessage(from, { react: { text: '✅', key: m.key } });
 
     } catch (error) {
-        console.error('TT2 Error:', error);
-        reply("ꜰᴀɪʟᴇᴅ ᴛᴏ ᴅᴏᴡɴʟᴏᴀᴅ  ᴛɪᴋᴛᴏᴋ ᴠɪᴅᴇᴏ.ᴘʟᴇᴀꜱᴇ ᴛʀʏ ᴀɢᴀɪɴ ʟᴀᴛᴇʀ");
+        console.error('ᴛᴛ2 ᴇʀʀᴏʀ:', error);
+        reply("ꜰᴀɪʟᴇᴅ ᴛᴏ ᴅᴏᴡɴʟᴏᴀᴅ ᴛɪᴋᴛᴏᴋ ᴠɪᴅᴇᴏ. ᴘʟᴇᴀꜱᴇ ᴛʀʏ ᴀɢᴀɪɴ ʟᴀᴛᴇʀ.");
         await conn.sendMessage(from, { react: { text: '❌', key: m.key } });
     }
 });
-                
+
+
+// --- Tiktok3 (PrinceTech API v2) ---
 cmd({
-  pattern: "tiktok",
+  pattern: "tiktok3",
   alias: ["tt3", "ttdl3"],
   react: "📥",
-  desc: "Download TikTok video (API v4)",
+  desc: "Download TikTok video (API v2)",
   category: "download",
-  use: ".tt4 <TikTok URL>",
+  use: ".tiktok3 <TikTok URL>",
   filename: __filename
 }, async (conn, mek, m, { from, reply, args }) => {
   try {
     const url = args[0];
     if (!url || !url.includes("tiktok.com")) {
-      return reply("❌ ᴘʀᴏᴠɪᴅᴇ ᴀ ᴠᴀʟɪᴅ ᴛɪᴋᴛᴏᴋ ᴜʀʟ.\n\nᴇxᴀᴍᴘʟᴇ:\n.tiktok3 https://vt.tiktok.com/...");
+      return reply("❌ ᴘʀᴏᴠɪᴅᴇ ᴀ ᴠᴀʟɪᴅ ᴛɪᴋᴛᴏᴋ ᴜʀʟ.\n\nᴇxᴀᴍᴘʟᴇ:\n.ᴛɪᴋᴛᴏᴋ3 https://vt.tiktok.com/...");
     }
 
     await conn.sendMessage(from, { react: { text: "⏳", key: m.key } });
 
-    const apiUrl = `https://jawad-tech.vercel.app/download/tiktok?url=${encodeURIComponent(url)}`;
+    // New PrinceTech API v2 URL
+    const apiUrl = `https://api.princetechn.com/api/download/tiktokdlv2?apikey=prince&url=${encodeURIComponent(url)}`;
     const { data } = await axios.get(apiUrl);
 
-    if (!data.status || !data.result || !data.result.length) {
+    // Parse using PrinceTech API structure
+    if (!data || !data.success || !data.result || !data.result.video) {
       return reply("ᴠɪᴅᴇᴏ ɴᴏᴛ ꜰᴏᴜɴᴅ ᴏʀ ᴜɴᴀᴠᴀɪʟᴀʙʟᴇ.");
     }
 
-    const video = data.result[0]; // First available video link
-    const meta = data.metadata || {};
-    const author = meta.author || "Unknown";
-    const caption = meta.caption ? meta.caption.slice(0, 300) + "..." : "No caption provided.";
+    const result = data.result;
+    const title = result.title ? result.title.slice(0, 200) : "ɴᴏ ᴄᴀᴘᴛɪᴏɴ";
+    const author = result.author?.name || "ᴜɴᴋɴᴏᴡɴ ᴀᴜᴛʜᴏʀ";
 
     await conn.sendMessage(from, {
-      video: { url: video },
-      caption: `🎬 *ᴛɪᴋᴛᴏᴋ ᴅᴏᴡɴʟᴏᴀᴅᴇʀ*\n👤 *ᴀᴜᴛʜᴏʀ:* ${author}\n💬 *ᴄᴀᴘᴛɪᴏɴ:* ${caption}\n\n> Cʀᴇᴀᴛᴇᴅ ʙʏ ᴘʀɪᴍᴇ ʀɪᴅᴢ`
+      video: { url: result.video },
+      caption: `🎬 *ᴛɪᴋᴛᴏᴋ ᴅᴏᴡɴʟᴏᴀᴅᴇʀ*\n👤 *ᴀᴜᴛʜᴏʀ:* ${author}\n💬 *ᴄᴀᴘᴛɪᴏɴ:* ${title}\n\n> ᴄʀᴇᴀᴛᴇᴅ ʙʏ ᴘʀɪᴍᴇ ʀɪᴅᴢ`
     }, { quoted: anony });
 
     await conn.sendMessage(from, { react: { text: "✅", key: m.key } });
 
   } catch (err) {
-    console.error("TT4 Error:", err);
-    reply("ꜰᴀɪʟᴇᴅ ᴛᴏ ᴅᴏᴡɴʟᴏᴀᴅ  ᴛɪᴋᴛᴏᴋ ᴠɪᴅᴇᴏ.ᴘʟᴇᴀꜱᴇ ᴛʀʏ ᴀɢᴀɪɴ ʟᴀᴛᴇʀ.");
+    console.error("ᴛᴛ3 ᴇʀʀᴏʀ:", err);
+    reply("ꜰᴀɪʟᴇᴅ ᴛᴏ ᴅᴏᴡɴʟᴏᴀᴅ ᴛɪᴋᴛᴏᴋ ᴠɪᴅᴇᴏ. ᴘʟᴇᴀꜱᴇ ᴛʀʏ ᴀɢᴀɪɴ ʟᴀᴛᴇʀ.");
     await conn.sendMessage(from, { react: { text: "❌", key: m.key } });
   }
 });
@@ -2822,7 +2743,7 @@ cmd({
 cmd({
     pattern: "githubstalk",
     desc: "Fetch detailed GitHub user profile including profile picture.",
-    category: "menu",
+    category: "main",
     react: "🖥️",
     filename: __filename
 },
@@ -4673,26 +4594,34 @@ cmd({
 async (conn, mek, m, { from, reply, args }) => {
     try {
         // Check if URL is provided
-        if (!args) return reply("❌ Please provide a WhatsApp channel URL\nExample: .wstalk https://whatsapp.com/channel/0029VatOy2EAzNc2WcShQw1j");
+        if (!args[0]) return reply("❌ ᴘʟᴇᴀꜱᴇ ᴘʀᴏᴠɪᴅᴇ ᴀ ᴡʜᴀᴛꜱᴀᴘᴘ ᴄʜᴀɴɴᴇʟ ᴜʀʟ\nᴇxᴀᴍᴘʟᴇ: .ᴡꜱᴛᴀʟᴋ https://whatsapp.com/channel/0029VatOy2EAzNc2WcShQw1j");
+
+        const url = args.join(" ");
 
         // Extract channel ID from URL
-        const channelId = args.match(/channel\/([0-9A-Za-z]+)/i)?.[1];
-        if (!channelId) return reply("❌ Invalid WhatsApp channel URL");
+        const channelId = url.match(/channel\/([0-9A-Za-z]+)/i)?.[1];
+        if (!channelId) return reply("❌ ɪɴᴠᴀʟɪᴅ ᴡʜᴀᴛꜱᴀᴘᴘ ᴄʜᴀɴɴᴇʟ ᴜʀʟ");
 
-        // API endpoint
-        const apiUrl = `https://itzpire.com/stalk/whatsapp-channel?url=https://whatsapp.com/channel/${channelId}`;
+        // PrinceTech API endpoint
+        const apiUrl = `https://api.princetechn.com/api/stalk/wachannel?apikey=prince&url=https://whatsapp.com/channel/${channelId}`;
 
         // Fetch channel info
         const response = await axios.get(apiUrl);
-        const data = response.data.data;
+        const res = response.data;
+
+        if (!res || !res.success || !res.result) {
+            return reply("❌ ꜰᴀɪʟᴇᴅ ᴛᴏ ꜰᴇᴛᴄʜ ᴄʜᴀɴɴᴇʟ ɪɴꜰᴏ.");
+        }
+
+        const data = res.result;
 
         // Format the information
         const channelInfo = `
- ╭━━〔 *𝘾𝙃𝘼𝙉𝙉𝙀𝙇 𝙄𝙉𝙁𝙊* 〕━━┈⊷
+ ╭━━〔 *ᴄʜᴀɴɴᴇʟ ɪɴꜰᴏ* 〕━━┈⊷
 ┃◈╭─────────────·๏
-┃◈┃• *📢 ᴛɪᴛʟᴇ *: ${data.title}
-┃◈┃• *👥 ꜰᴏʟʟᴏᴡᴇʀꜱ*: ${data.followers}
-┃◈┃• *📝 ᴅᴇꜱᴄʀɪᴘᴛɪᴏɴ *: ${data.description.replace(/\n/g, '\n┃◈┃• ')}
+┃◈┃• *📢 ᴛɪᴛʟᴇ:* ᴡʜᴀᴛꜱᴀᴘᴘ ᴄʜᴀɴɴᴇʟ
+┃◈┃• *👥 ꜰᴏʟʟᴏᴡᴇʀꜱ:* ${data.followers || 'ɴ/ᴀ'}
+┃◈┃• *📝 ᴅᴇꜱᴄʀɪᴘᴛɪᴏɴ:* ${(data.description || 'ɴᴏ ᴅᴇꜱᴄʀɪᴘᴛɪᴏɴ').replace(/\n/g, '\n┃◈┃• ')}
 ┃◈└───────────┈⊷
 ╰──────────────┈⊷
 > © ᴘᴏᴡᴇʀᴇᴅ ʙʏ ᴘʀɪᴍᴇ ʀɪᴅᴢ`;
@@ -4708,7 +4637,7 @@ async (conn, mek, m, { from, reply, args }) => {
         }, { quoted: anony });
 
     } catch (e) {
-        console.error("Error in wstalk command:", e);
+        console.error("ᴇʀʀᴏʀ ɪɴ ᴡꜱᴛᴀʟᴋ ᴄᴏᴍᴍᴀɴᴅ:", e);
         reply(`ᴇʀʀᴏʀ: ${e.response?.data?.message || e.message}`);
     }
 });
@@ -5053,7 +4982,7 @@ cmd({
     alias: ["prayertimes", "prayertime", "ptime" ], 
     react: "✅", 
     desc: "Get the prayer times, weather, and location for the city.", 
-    category: "menu", 
+    category: "main", 
     filename: __filename,
 },
 async(conn, mek, m, {from, l, quoted, body, isCmd, command, args, q, isGroup, sender, senderNumber, botNumber2, botNumber, pushname, isMe, isOwner, groupMetadata, groupName, participants, isItzcp, groupAdmins, isBotAdmins, isAdmins, reply}) => {
@@ -5527,7 +5456,7 @@ cmd({
     pattern: "quranmenu",
     alias: ["surahmenu", "surahlist"],
     desc: "menu the bot",
-    category: "menu",
+    category: "main",
     react: "❤️",
     filename: __filename
 }, 
