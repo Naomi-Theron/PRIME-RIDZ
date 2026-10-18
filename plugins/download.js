@@ -13,37 +13,36 @@ function sanitizeFilename(title, ext = '') {
         .substring(0, 64) + ext;
 }
 
-// Helper to try APIs
+// Helper to use the PrinceTech API
 async function fetchYtApi(type, videoUrl) {
-    const endpoints = [];
-    if (type === 'mp3') {
-        endpoints.push(`https://yt-dl.officialhectormanuel.workers.dev/?url=${encodeURIComponent(videoUrl)}`);
-    } else if (type === 'mp4') {
-        endpoints.push(`https://yt-dl.officialhectormanuel.workers.dev/?url=${encodeURIComponent(videoUrl)}`);
-        endpoints.push(`https://apis.davidcyril.name.ng/download/ytmp4?url=${encodeURIComponent(videoUrl)}`);
-    }
-
-    for (const url of endpoints) {
-        try {
-            const res = await fetch(url);
-            const data = await res.json();
-            
-            // Check if the API returned valid data
-            if (!data) continue;
-            
-            // Normalize the response structure depending on which API worked
-            let downloadUrl = data.url || data.download || data.result?.download || data.link;
-            let title = data.title || data.result?.title || 'ᴜɴᴋɴᴏᴡɴ ᴛɪᴛʟᴇ';
-            let cover = data.thumbnail || data.thumb || data.result?.cover;
-
-            if (downloadUrl) {
-                return { download: downloadUrl, title, cover };
-            }
-        } catch (e) {
-            console.log(`ᴀᴘɪ ꜰᴀɪʟᴇᴅ: ${url} - ${e.message}`);
+    try {
+        let url;
+        if (type === 'mp3') {
+            url = `https://api.princetechn.com/api/download/dlmp3?apikey=prince&url=${encodeURIComponent(videoUrl)}`;
+        } else if (type === 'mp4') {
+            // PrinceTech uses a similar endpoint for mp4
+            url = `https://api.princetechn.com/api/download/dlmp4?apikey=prince&url=${encodeURIComponent(videoUrl)}`;
         }
+
+        const res = await fetch(url);
+        const data = await res.json();
+        
+        if (!data || !data.success || !data.result) return null;
+        
+        // Normalize the response structure based on the PrinceTech API format
+        const resultData = data.result;
+        let downloadUrl = resultData.dl_link || resultData.url || resultData.download || resultData.link;
+        let title = resultData.title || 'ᴜɴᴋɴᴏᴡɴ ᴛɪᴛʟᴇ';
+        let cover = resultData.thumbnail || null;
+
+        if (downloadUrl) {
+            return { download: downloadUrl, title, cover };
+        }
+        return null;
+    } catch (e) {
+        console.log(`ᴀᴘɪ ꜰᴀɪʟᴇᴅ: ${e.message}`);
+        return null;
     }
-    return null;
 }
 
 // --- YTMP3 Command (Returns as Document) ---
@@ -69,7 +68,7 @@ cmd({
         }
 
         const result = await fetchYtApi('mp3', ytUrl);
-        if (!result) return reply("❌ ꜰᴀɪʟᴇᴅ ᴛᴏ ᴅᴏᴡɴʟᴏᴀᴅ ᴀᴜᴅɪᴏ. ᴀʟʟ ᴀᴘɪs ꜰᴀɪʟᴇᴅ.");
+        if (!result) return reply("❌ ꜰᴀɪʟᴇᴅ ᴛᴏ ᴅᴏᴡɴʟᴏᴀᴅ ᴀᴜᴅɪᴏ. ᴀᴘɪ ꜰᴀɪʟᴇᴅ.");
 
         // Send cover image first (optional)
         if (result.cover) {
@@ -99,7 +98,7 @@ cmd({
     pattern: "ytmp4",
     alias: ["video"],
     desc: "Download YouTube video (MP4)",
-    category: "main",
+    category: "download",
     use: ".ytmp4 <video name or url>",
     react: "🔰",
     filename: __filename
@@ -117,7 +116,7 @@ cmd({
         }
 
         const result = await fetchYtApi('mp4', ytUrl);
-        if (!result) return reply("❌ ꜰᴀɪʟᴇᴅ ᴛᴏ ᴅᴏᴡɴʟᴏᴀᴅ ᴠɪᴅᴇᴏ. ᴀʟʟ ᴀᴘɪs ꜰᴀɪʟᴇᴅ.");
+        if (!result) return reply("❌ ꜰᴀɪʟᴇᴅ ᴛᴏ ᴅᴏᴡɴʟᴏᴀᴅ ᴠɪᴅᴇᴏ. ᴀᴘɪ ꜰᴀɪʟᴇᴅ.");
 
         await conn.sendMessage(from, {
             video: { url: result.download },
@@ -139,7 +138,7 @@ cmd({
     alias: ["yta"],
     react: "🎵",
     desc: "Download YouTube audio (document MP3 only)",
-    category: "downloader",
+    category: "download",
     use: ".play <song name or url>",
     filename: __filename
 }, async (conn, mek, m, { from, q, reply }) => {
@@ -181,7 +180,7 @@ cmd({
     alias: ["yta2", "song2"],
     react: "🎵",
     desc: "Download high quality YouTube audio",
-    category: "media",
+    category: "download",
     use: ".play2 <song name or url>",
     filename: __filename
 }, async (conn, mek, m, { from, q, reply }) => {
@@ -203,7 +202,7 @@ cmd({
         if (result.cover) {
             await conn.sendMessage(from, {
                 image: { url: result.cover },
-                caption: `*ʏᴛ ᴀᴜᴅɪᴏ ᴅᴏᴡɴʟᴏᴀᴅᴇʀ*\n╭━━❐━⪼\n┇๏ *ᴛɪᴛʟᴇ*    –  ${result.title}\n┇๏ *ǫᴜᴀʟɪᴛʏ*   –  ${result.quality || 'ᴜɴᴋɴᴏᴡɴ'}\n╰━━❑━⪼\n> *ᴅᴏᴡɴʟᴏᴀᴅɪɴɢ ᴀᴜᴅɪᴏ ꜰɪʟᴇ ♡*`
+                caption: `*ʏᴛ ᴀᴜᴅɪᴏ ᴅᴏᴡɴʟᴏᴀᴅᴇʀ*\n╭━━❐━⪼\n┇๏ *ᴛɪᴛʟᴇ*    –  ${result.title}\n╰━━❑━⪼\n> *ᴅᴏᴡɴʟᴏᴀᴅɪɴɢ ᴀᴜᴅɪᴏ ꜰɪʟᴇ ♡*`
             }, { quoted: anony });
         }
 
@@ -213,7 +212,7 @@ cmd({
         const audioBuffer = Buffer.from(arrayBuffer);
 
         await conn.sendMessage(from, {
-            document: audioBuffer, // Changed to document
+            document: audioBuffer,
             mimetype: 'audio/mpeg',
             fileName: sanitizeFilename(result.title, '.mp3')
         }, { quoted: anony });
