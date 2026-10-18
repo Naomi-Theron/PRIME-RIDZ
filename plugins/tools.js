@@ -32,7 +32,7 @@ const {
 } = require("../lib/functions");
 
 const { anony } = require("../lib/ridzcoder");
-const { fetchGif, fetchImage, gifToSticker } = require("../lib/sticker-utils");
+const { fetchImage, gifToSticker } = require("../lib/sticker-utils");
 const { videoToWebp } = require("../lib/video-utils");
 const converter = require("../data/converter");
 const stickerConverter = require("../data/sticker-converter");
