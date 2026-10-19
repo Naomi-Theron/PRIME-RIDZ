@@ -496,7 +496,7 @@ cmd({
     alias: [ "insta", "ig"],
     react: "⬇️",
     desc: "Download Instagram videos/reels",
-    category: "downloader",
+    category: "download",
     use: ".igdl <Instagram URL>",
     filename: __filename
 }, async (conn, mek, m, { from, reply, args, q }) => {
@@ -2237,7 +2237,7 @@ cmd({
     pattern: "ytpost",
     alias: ["ytcommunity", "ytc"],
     desc: "Download a YouTube community post",
-    category: "downloader",
+    category: "download",
     react: "🎥",
     filename: __filename
 },
@@ -2486,7 +2486,7 @@ cmd({
     alias: ["tophoto","url2image","urltoimage"],
     desc: "Convert image URL to WhatsApp image",
     alias: ["imagefromurl", "fetchimage"],
-    category: "media",
+    category: "tools",
     react: "🖼️",
     filename: __filename
 }, async (conn, mek, m, { from, reply, text }) => {
