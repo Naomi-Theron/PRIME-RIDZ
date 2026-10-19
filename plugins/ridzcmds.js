@@ -72,7 +72,6 @@ async function uploadToTmpfiles(buffer, filename) {
     });
 
     if (res.data && res.data.status === 'success' && res.data.data?.url) {
-        // Tmpfiles URL needs to be formatted for direct download
         return res.data.data.url.replace('https://tmpfiles.org/', 'https://tmpfiles.org/dl/');
     }
     throw new Error('Tmpfiles upload failed');
@@ -138,14 +137,25 @@ async function runImageEdit(ctx, message, apiUrl, caption) {
 
         // 2) Call the edit API
         const finalUrl = apiUrl.replace('{url}', encodeURIComponent(uploadedUrl));
+        
         const res = await axios.get(finalUrl, {
             responseType: 'arraybuffer',
             timeout: 30000,
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'image/*'
+            },
             validateStatus: () => true
         });
 
+        // Log exact API error if it fails
         if (res.status !== 200 || !res.data || res.data.length < 100) {
-            throw new Error(`Edit API failed (${res.status})`);
+            // If the API returned JSON text instead of an image, read it for the log
+            let errTxt = '';
+            if (res.headers['content-type']?.includes('json') || res.headers['content-type']?.includes('text')) {
+                errTxt = Buffer.from(res.data).toString();
+            }
+            throw new Error(`API rejected (${res.status}) ${errTxt}`);
         }
 
         const outBuffer = Buffer.from(res.data, 'binary');
@@ -157,7 +167,7 @@ async function runImageEdit(ctx, message, apiUrl, caption) {
         }, { quoted: anony });
         
     } catch (err) {
-        console.error('[image-edit] error:', err?.response?.data || err.message || err);
+        console.error('[image-edit] error:', err.message);
         reply(`ᴀɴ ᴇʀʀᴏʀ ᴏᴄᴄᴜʀʀᴇᴅ: ${err.message || 'ᴜɴᴋɴᴏᴡɴ ᴇʀʀᴏʀ'}`);
     }
 }
