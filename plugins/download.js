@@ -13,33 +13,44 @@ function sanitizeFilename(title, ext = '') {
         .substring(0, 64) + ext;
 }
 
-// Helper with User-Agent headers to mimic a browser
 const HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
     'Accept': 'application/json, text/plain, */*',
     'Referer': 'https://www.youtube.com/'
 };
 
-async function fetchYtApi(videoUrl) {
+// Fetch from Hector API and parse audio/video correctly
+async function fetchYtApi(videoUrl, type = 'audio') {
     const url = `https://yt-dl.officialhectormanuel.workers.dev/?url=${encodeURIComponent(videoUrl)}`;
-
     console.log(`[ᴘʟᴀʏ] ꜰᴇᴛᴄʜɪɴɢ ᴀᴘɪ: ${url}`);
+
     const res = await fetch(url, { headers: HEADERS, redirect: 'follow' });
     const data = await res.json();
-    console.log(`[ᴘʟᴀʏ] ᴀᴘɪ ʀᴇꜱᴘᴏɴꜱᴇ:`, JSON.stringify(data).substring(0, 400));
+    console.log(`[ᴘʟᴀʏ] ᴀᴘɪ ʀᴇꜱᴘᴏɴꜱᴇ:`, JSON.stringify(data).substring(0, 300));
 
-    if (!data) return null;
+    if (!data || !data.status) return null;
 
-    // Normalize the response (Hector API may use 'url', 'download', or 'link')
-    let downloadUrl = data.url || data.download || data.link || data.result?.url || data.result?.download;
-    let title = data.title || data.result?.title || 'ᴜɴᴋɴᴏᴡɴ ᴛɪᴛʟᴇ';
-    let cover = data.thumbnail || data.result?.thumbnail || null;
+    let downloadUrl;
+    if (type === 'audio') {
+        downloadUrl = data.audio;
+    } else {
+        // Pick highest available video quality (e.g. 360, 720, 1080)
+        if (data.videos) {
+            const qualities = Object.keys(data.videos).sort((a, b) => Number(b) - Number(a));
+            downloadUrl = data.videos[qualities[0]];
+        }
+    }
 
     if (!downloadUrl) return null;
-    return { download: downloadUrl, title, cover };
+
+    return {
+        download: downloadUrl,
+        title: data.title || 'ᴜɴᴋɴᴏᴡɴ ᴛɪᴛʟᴇ',
+        cover: data.thumbnail || null
+    };
 }
 
-// Helper to download the file as a buffer with a browser UA
+// Download to buffer
 async function downloadBuffer(url) {
     console.log(`[ᴘʟᴀʏ] ᴅᴏᴡɴʟᴏᴀᴅɪɴɢ ʙᴜꜰꜰᴇʀ: ${url.substring(0, 80)}...`);
     const res = await fetch(url, { headers: HEADERS, redirect: 'follow' });
@@ -47,7 +58,7 @@ async function downloadBuffer(url) {
     const arrayBuffer = await res.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
     console.log(`[ᴘʟᴀʏ] ʙᴜꜰꜰᴇʀ ꜱɪᴢᴇ: ${(buffer.length / 1024 / 1024).toFixed(2)} ᴍʙ`);
-    if (buffer.length < 1024) throw new Error(`ꜰɪʟᴇ ᴛᴏᴏ ꜱᴍᴀʟʟ (${buffer.length} ʙʏᴛᴇꜱ) - ᴘʀᴏʙᴀʙʟʏ ᴀɴ ᴇʀʀᴏʀ ᴘᴀɢᴇ`);
+    if (buffer.length < 1024) throw new Error(`ꜰɪʟᴇ ᴛᴏᴏ ꜱᴍᴀʟʟ (${buffer.length} ʙʏᴛᴇꜱ)`);
     return buffer;
 }
 
@@ -68,14 +79,13 @@ cmd({
         if (!isYoutubeUrl(q)) {
             const searchResults = await yts(q);
             if (!searchResults.videos || !searchResults.videos.length) {
-                return reply("❌ ɴᴏ ᴀᴜᴅɪᴏ ꜰᴏᴜɴᴅ ᴡɪᴛʜ ᴛʜᴀᴛ ɴᴀᴍᴇ.");
+                return reply("❌ ɴᴏ ᴀᴜᴅɪᴏ ꜰᴏᴜɴᴅ.");
             }
             ytUrl = searchResults.videos[0].url;
         }
-        console.log(`[ᴘʟᴀʏ] ʏᴛ ᴜʀʟ: ${ytUrl}`);
 
-        const result = await fetchYtApi(ytUrl);
-        if (!result) return reply("❌ ꜰᴀɪʟᴇᴅ ᴛᴏ ɢᴇᴛ ᴅᴏᴡɴʟᴏᴀᴅ ʟɪɴᴋ ꜰʀᴏᴍ ᴀᴘɪ.");
+        const result = await fetchYtApi(ytUrl, 'audio');
+        if (!result) return reply("❌ ꜰᴀɪʟᴇᴅ ᴛᴏ ɢᴇᴛ ᴀᴜᴅɪᴏ ʟɪɴᴋ.");
 
         const buffer = await downloadBuffer(result.download);
 
@@ -110,20 +120,20 @@ cmd({
         if (!isYoutubeUrl(q)) {
             const searchResults = await yts(q);
             if (!searchResults.videos || !searchResults.videos.length) {
-                return reply("❌ ɴᴏ ᴠɪᴅᴇᴏ ꜰᴏᴜɴᴅ ᴡɪᴛʜ ᴛʜᴀᴛ ɴᴀᴍᴇ.");
+                return reply("❌ ɴᴏ ᴠɪᴅᴇᴏ ꜰᴏᴜɴᴅ.");
             }
             ytUrl = searchResults.videos[0].url;
         }
 
-        const result = await fetchYtApi(ytUrl);
-        if (!result) return reply("❌ ꜰᴀɪʟᴇᴅ ᴛᴏ ɢᴇᴛ ᴅᴏᴡɴʟᴏᴀᴅ ʟɪɴᴋ ꜰʀᴏᴍ ᴀᴘɪ.");
+        const result = await fetchYtApi(ytUrl, 'video');
+        if (!result) return reply("❌ ꜰᴀɪʟᴇᴅ ᴛᴏ ɢᴇᴛ ᴠɪᴅᴇᴏ ʟɪɴᴋ.");
 
         const buffer = await downloadBuffer(result.download);
 
         await conn.sendMessage(from, {
             video: buffer,
             mimetype: "video/mp4",
-            caption: `📽️ *${result.title}*\n📊 ǫᴜᴀʟɪᴛʏ: ᴍᴘ4\n🎨 ʙʏ: ᴛᴇʀʀɪ`
+            caption: `📽️ *${result.title}*\n🎨 ʙʏ: ᴛᴇʀʀɪ`
         }, { quoted: anony });
 
         await conn.sendMessage(from, { react: { text: '✅', key: m.key } });
@@ -139,7 +149,7 @@ cmd({
     pattern: "play",
     alias: ["yta"],
     react: "🎵",
-    desc: "Download YouTube audio (document MP3 only)",
+    desc: "Download YouTube audio (document MP3)",
     category: "downloader",
     use: ".play <song name or url>",
     filename: __filename
@@ -156,7 +166,7 @@ cmd({
             ytUrl = searchResults.videos[0].url;
         }
 
-        const result = await fetchYtApi(ytUrl);
+        const result = await fetchYtApi(ytUrl, 'audio');
         if (!result) return reply("ᴀᴜᴅɪᴏ ᴅᴏᴡɴʟᴏᴀᴅ ꜰᴀɪʟᴇᴅ");
 
         const buffer = await downloadBuffer(result.download);
@@ -186,24 +196,24 @@ cmd({
     filename: __filename
 }, async (conn, mek, m, { from, q, reply }) => {
     try {
-        if (!q) return reply("ᴘʟᴇᴀꜱᴇ ᴘʀᴏᴠɪᴅᴇ ᴀ ꜱᴏɴɢ ɴᴀᴍᴇ\nᴇxᴀᴍᴘʟᴇ: .ᴘʟᴀʏ2 ᴛᴜᴍ ʜɪ ʜᴏ");
+        if (!q) return reply("ᴘʟᴇᴀꜱᴇ ᴘʀᴏᴠɪᴅᴇ ᴀ ꜱᴏɴɢ ɴᴀᴍᴇ");
 
         let ytUrl = q;
         if (!isYoutubeUrl(q)) {
             const searchResults = await yts(q);
             if (!searchResults.videos || !searchResults.videos.length) {
-                return reply("❌ ɴᴏ ʀᴇꜱᴜʟᴛꜱ ꜰᴏᴜɴᴅ. ᴛʀʏ ᴀ ᴅɪꜰꜰᴇʀᴇɴᴛ ꜱᴇᴀʀᴄʜ ᴛᴇʀᴍ.");
+                return reply("❌ ɴᴏ ʀᴇꜱᴜʟᴛꜱ ꜰᴏᴜɴᴅ.");
             }
             ytUrl = searchResults.videos[0].url;
         }
 
-        const result = await fetchYtApi(ytUrl);
-        if (!result) return reply("❌ ꜰᴀɪʟᴇᴅ ᴛᴏ ꜰᴇᴛᴄʜ ᴀᴜᴅɪᴏ. ᴛʀʏ ᴀɢᴀɪɴ ʟᴀᴛᴇʀ.");
+        const result = await fetchYtApi(ytUrl, 'audio');
+        if (!result) return reply("❌ ꜰᴀɪʟᴇᴅ ᴛᴏ ꜰᴇᴛᴄʜ ᴀᴜᴅɪᴏ.");
 
         if (result.cover) {
             await conn.sendMessage(from, {
                 image: { url: result.cover },
-                caption: `*ʏᴛ ᴀᴜᴅɪᴏ ᴅᴏᴡɴʟᴏᴀᴅᴇʀ*\n╭━━❐━⪼\n┇๏ *ᴛɪᴛʟᴇ*    –  ${result.title}\n╰━━❑━⪼\n> *ᴅᴏᴡɴʟᴏᴀᴅɪɴɢ ᴀᴜᴅɪᴏ ꜰɪʟᴇ ♡*`
+                caption: `*ʏᴛ ᴀᴜᴅɪᴏ ᴅᴏᴡɴʟᴏᴀᴅᴇʀ*\n╭━━❐━⪼\n┇๏ *ᴛɪᴛʟᴇ* – ${result.title}\n╰━━❑━⪼`
             }, { quoted: anony });
         }
 
