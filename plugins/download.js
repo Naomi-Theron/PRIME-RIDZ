@@ -64,10 +64,10 @@ async function downloadBuffer(url) {
 
 // --- YTMP3 ---
 cmd({
-    pattern: "ytmp3",
-    alias: ["song", "audio"],
+    pattern: "song",
+    alias: ["play3", "audio"],
     desc: "Download YouTube audio (MP3 Document)",
-    category: "main",
+    category: "download",
     use: ".ytmp3 <song name or url>",
     react: "🔰",
     filename: __filename
@@ -105,12 +105,12 @@ cmd({
 
 // --- YTMP4 ---
 cmd({
-    pattern: "ytmp4",
-    alias: ["video"],
+    pattern: "video",
+    alias: ["ytmp4"],
     desc: "Download YouTube video (MP4)",
-    category: "main",
+    category: "download",
     use: ".ytmp4 <video name or url>",
-    react: "🔰",
+    react: "🧚",
     filename: __filename
 }, async (conn, mek, m, { from, reply, q }) => {
     try {
@@ -133,7 +133,7 @@ cmd({
         await conn.sendMessage(from, {
             video: buffer,
             mimetype: "video/mp4",
-            caption: `📽️ *${result.title}*\n🎨 ʙʏ: ᴛᴇʀʀɪ`
+            caption: `📽️ *${result.title}*\n🎨 ʙʏ: ᴘʀɪᴍᴇ ʀɪᴅᴢ`
         }, { quoted: anony });
 
         await conn.sendMessage(from, { react: { text: '✅', key: m.key } });
@@ -150,7 +150,7 @@ cmd({
     alias: ["yta"],
     react: "🎵",
     desc: "Download YouTube audio (document MP3)",
-    category: "downloader",
+    category: "download",
     use: ".play <song name or url>",
     filename: __filename
 }, async (conn, mek, m, { from, q, reply }) => {
@@ -191,7 +191,7 @@ cmd({
     alias: ["yta2", "song2"],
     react: "🎵",
     desc: "Download high quality YouTube audio",
-    category: "media",
+    category: "download",
     use: ".play2 <song name or url>",
     filename: __filename
 }, async (conn, mek, m, { from, q, reply }) => {
