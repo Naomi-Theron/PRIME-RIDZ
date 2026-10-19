@@ -6,7 +6,7 @@ const fs = require('fs');
 const { exec } = require('child_process');
 const { tmpdir } = require('os');
 const path = require('path');
-const { toAudio, toPTT } = require('../start/lib/converter');
+const { toAudio, toPTT } = require('../lib/converter');
 
 // Helper function to send the generated image
 async function handleEphoto360(conn, mek, from, reply, text, prefix, endpoint, title) {
