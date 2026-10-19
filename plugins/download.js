@@ -13,39 +13,50 @@ function sanitizeFilename(title, ext = '') {
         .substring(0, 64) + ext;
 }
 
-// Helper to use the PrinceTech API
+// Helper with User-Agent headers to mimic a browser
+const HEADERS = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Accept': 'application/json, text/plain, */*',
+    'Referer': 'https://www.youtube.com/'
+};
+
 async function fetchYtApi(type, videoUrl) {
-    try {
-        let url;
-        if (type === 'mp3') {
-            url = `https://api.princetechn.com/api/download/dlmp3?apikey=prince&url=${encodeURIComponent(videoUrl)}`;
-        } else if (type === 'mp4') {
-            // PrinceTech uses a similar endpoint for mp4
-            url = `https://api.princetechn.com/api/download/dlmp4?apikey=prince&url=${encodeURIComponent(videoUrl)}`;
-        }
-
-        const res = await fetch(url);
-        const data = await res.json();
-        
-        if (!data || !data.success || !data.result) return null;
-        
-        // Normalize the response structure based on the PrinceTech API format
-        const resultData = data.result;
-        let downloadUrl = resultData.dl_link || resultData.url || resultData.download || resultData.link;
-        let title = resultData.title || 'ᴜɴᴋɴᴏᴡɴ ᴛɪᴛʟᴇ';
-        let cover = resultData.thumbnail || null;
-
-        if (downloadUrl) {
-            return { download: downloadUrl, title, cover };
-        }
-        return null;
-    } catch (e) {
-        console.log(`ᴀᴘɪ ꜰᴀɪʟᴇᴅ: ${e.message}`);
-        return null;
+    let url;
+    if (type === 'mp3') {
+        url = `https://api.princetechn.com/api/download/dlmp3?apikey=prince&url=${encodeURIComponent(videoUrl)}`;
+    } else if (type === 'mp4') {
+        url = `https://api.princetechn.com/api/download/dlmp4?apikey=prince&url=${encodeURIComponent(videoUrl)}`;
     }
+
+    console.log(`[ᴘʟᴀʏ] ꜰᴇᴛᴄʜɪɴɢ ᴀᴘɪ: ${url}`);
+    const res = await fetch(url, { headers: HEADERS, redirect: 'follow' });
+    const data = await res.json();
+    console.log(`[ᴘʟᴀʏ] ᴀᴘɪ ʀᴇꜱᴘᴏɴꜱᴇ:`, JSON.stringify(data).substring(0, 400));
+
+    if (!data || !data.success || !data.result) return null;
+
+    const resultData = data.result;
+    let downloadUrl = resultData.dl_link || resultData.url || resultData.download || resultData.link;
+    let title = resultData.title || 'ᴜɴᴋɴᴏᴡɴ ᴛɪᴛʟᴇ';
+    let cover = resultData.thumbnail || null;
+
+    if (!downloadUrl) return null;
+    return { download: downloadUrl, title, cover };
 }
 
-// --- YTMP3 Command (Returns as Document) ---
+// Helper to download the file as a buffer with a browser UA
+async function downloadBuffer(url) {
+    console.log(`[ᴘʟᴀʏ] ᴅᴏᴡɴʟᴏᴀᴅɪɴɢ ʙᴜꜰꜰᴇʀ: ${url.substring(0, 80)}...`);
+    const res = await fetch(url, { headers: HEADERS, redirect: 'follow' });
+    if (!res.ok) throw new Error(`ᴅᴏᴡɴʟᴏᴀᴅ ꜰᴀɪʟᴇᴅ ᴡɪᴛʜ ꜱᴛᴀᴛᴜꜱ ${res.status}`);
+    const arrayBuffer = await res.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    console.log(`[ᴘʟᴀʏ] ʙᴜꜰꜰᴇʀ ꜱɪᴢᴇ: ${(buffer.length / 1024 / 1024).toFixed(2)} ᴍʙ`);
+    if (buffer.length < 1024) throw new Error(`ꜰɪʟᴇ ᴛᴏᴏ ꜱᴍᴀʟʟ (${buffer.length} ʙʏᴛᴇꜱ) - ᴘʀᴏʙᴀʙʟʏ ᴀɴ ᴇʀʀᴏʀ ᴘᴀɢᴇ`);
+    return buffer;
+}
+
+// --- YTMP3 ---
 cmd({
     pattern: "ytmp3",
     alias: ["song", "audio"],
@@ -56,7 +67,7 @@ cmd({
     filename: __filename
 }, async (conn, mek, m, { from, reply, q }) => {
     try {
-        if (!q) return reply("❗ ᴘʟᴇᴀsᴇ ᴘʀᴏᴠɪᴅᴇ ᴀ sᴏɴɢ ɴᴀᴍᴇ ᴏʀ ʏᴏᴜᴛᴜʙᴇ ᴜʀʟ.");
+        if (!q) return reply("❗ ᴘʟᴇᴀꜱᴇ ᴘʀᴏᴠɪᴅᴇ ᴀ ꜱᴏɴɢ ɴᴀᴍᴇ ᴏʀ ʏᴏᴜᴛᴜʙᴇ ᴜʀʟ.");
 
         let ytUrl = q;
         if (!isYoutubeUrl(q)) {
@@ -66,45 +77,39 @@ cmd({
             }
             ytUrl = searchResults.videos[0].url;
         }
+        console.log(`[ᴘʟᴀʏ] ʏᴛ ᴜʀʟ: ${ytUrl}`);
 
         const result = await fetchYtApi('mp3', ytUrl);
-        if (!result) return reply("❌ ꜰᴀɪʟᴇᴅ ᴛᴏ ᴅᴏᴡɴʟᴏᴀᴅ ᴀᴜᴅɪᴏ. ᴀᴘɪ ꜰᴀɪʟᴇᴅ.");
+        if (!result) return reply("❌ ꜰᴀɪʟᴇᴅ ᴛᴏ ɢᴇᴛ ᴅᴏᴡɴʟᴏᴀᴅ ʟɪɴᴋ ꜰʀᴏᴍ ᴀᴘɪ.");
 
-        // Send cover image first (optional)
-        if (result.cover) {
-            await conn.sendMessage(from, {
-                image: { url: result.cover },
-                caption: `🎵 *${result.title}*\n📊 ǫᴜᴀʟɪᴛʏ: ᴍᴘ3\nᴘᴏᴡᴇʀᴇᴅ ʙʏ ᴛᴇʀʀɪ`
-            }, { quoted: anony });
-        }
+        const buffer = await downloadBuffer(result.download);
 
-        // Send as Document
         await conn.sendMessage(from, {
-            document: { url: result.download },
+            document: buffer,
             mimetype: "audio/mpeg",
             fileName: sanitizeFilename(result.title, '.mp3')
         }, { quoted: anony });
 
         await conn.sendMessage(from, { react: { text: '✅', key: m.key } });
     } catch (err) {
-        console.error(err);
+        console.error('[ʏᴛᴍᴘ3 ᴇʀʀᴏʀ]', err);
         await conn.sendMessage(from, { react: { text: '❌', key: m.key } });
-        reply("⚠️ ᴇʀʀᴏʀ ᴏᴄᴄᴜʀʀᴇᴅ. ᴛʀʏ ᴀɢᴀɪɴ.");
+        reply(`⚠️ ᴇʀʀᴏʀ: ${err.message}`);
     }
 });
 
-// --- YTMP4 Command (Returns as Video) ---
+// --- YTMP4 ---
 cmd({
     pattern: "ytmp4",
     alias: ["video"],
     desc: "Download YouTube video (MP4)",
-    category: "download",
+    category: "main",
     use: ".ytmp4 <video name or url>",
     react: "🔰",
     filename: __filename
 }, async (conn, mek, m, { from, reply, q }) => {
     try {
-        if (!q) return reply("❗ ᴘʟᴇᴀsᴇ ᴘʀᴏᴠɪᴅᴇ ᴀ ᴠɪᴅᴇᴏ ɴᴀᴍᴇ ᴏʀ ʏᴏᴜᴛᴜʙᴇ ᴜʀʟ.");
+        if (!q) return reply("❗ ᴘʟᴇᴀꜱᴇ ᴘʀᴏᴠɪᴅᴇ ᴀ ᴠɪᴅᴇᴏ ɴᴀᴍᴇ ᴏʀ ʏᴏᴜᴛᴜʙᴇ ᴜʀʟ.");
 
         let ytUrl = q;
         if (!isYoutubeUrl(q)) {
@@ -116,40 +121,42 @@ cmd({
         }
 
         const result = await fetchYtApi('mp4', ytUrl);
-        if (!result) return reply("❌ ꜰᴀɪʟᴇᴅ ᴛᴏ ᴅᴏᴡɴʟᴏᴀᴅ ᴠɪᴅᴇᴏ. ᴀᴘɪ ꜰᴀɪʟᴇᴅ.");
+        if (!result) return reply("❌ ꜰᴀɪʟᴇᴅ ᴛᴏ ɢᴇᴛ ᴅᴏᴡɴʟᴏᴀᴅ ʟɪɴᴋ ꜰʀᴏᴍ ᴀᴘɪ.");
+
+        const buffer = await downloadBuffer(result.download);
 
         await conn.sendMessage(from, {
-            video: { url: result.download },
+            video: buffer,
             mimetype: "video/mp4",
             caption: `📽️ *${result.title}*\n📊 ǫᴜᴀʟɪᴛʏ: ᴍᴘ4\n🎨 ʙʏ: ᴛᴇʀʀɪ`
         }, { quoted: anony });
 
         await conn.sendMessage(from, { react: { text: '✅', key: m.key } });
     } catch (err) {
-        console.error(err);
+        console.error('[ʏᴛᴍᴘ4 ᴇʀʀᴏʀ]', err);
         await conn.sendMessage(from, { react: { text: '❌', key: m.key } });
-        reply("⚠️ ᴇʀʀᴏʀ ᴏᴄᴄᴜʀʀᴇᴅ. ᴛʀʏ ᴀɢᴀɪɴ.");
+        reply(`⚠️ ᴇʀʀᴏʀ: ${err.message}`);
     }
 });
 
-// --- PLAY Command (Returns as Document) ---
+// --- PLAY ---
 cmd({
     pattern: "play",
     alias: ["yta"],
     react: "🎵",
     desc: "Download YouTube audio (document MP3 only)",
-    category: "download",
+    category: "downloader",
     use: ".play <song name or url>",
     filename: __filename
 }, async (conn, mek, m, { from, q, reply }) => {
     try {
-        if (!q) return reply("🎵 ᴘʟᴇᴀsᴇ ᴘʀᴏᴠɪᴅᴇ ᴠɪᴅᴇᴏ ɴᴀᴍᴇ");
+        if (!q) return reply("🎵 ᴘʟᴇᴀꜱᴇ ᴘʀᴏᴠɪᴅᴇ ᴠɪᴅᴇᴏ ɴᴀᴍᴇ");
 
         let ytUrl = q;
         if (!isYoutubeUrl(q)) {
             const searchResults = await yts(q);
             if (!searchResults.videos || !searchResults.videos.length) {
-                return reply("ɴᴏ ʀᴇsᴜʟᴛs ꜰᴏᴜɴᴅ");
+                return reply("ɴᴏ ʀᴇꜱᴜʟᴛꜱ ꜰᴏᴜɴᴅ");
             }
             ytUrl = searchResults.videos[0].url;
         }
@@ -157,41 +164,40 @@ cmd({
         const result = await fetchYtApi('mp3', ytUrl);
         if (!result) return reply("ᴀᴜᴅɪᴏ ᴅᴏᴡɴʟᴏᴀᴅ ꜰᴀɪʟᴇᴅ");
 
-        const filename = sanitizeFilename(result.title, '.mp3');
+        const buffer = await downloadBuffer(result.download);
 
         await conn.sendMessage(from, {
-            document: { url: result.download },
+            document: buffer,
             mimetype: 'audio/mpeg',
-            fileName: filename
+            fileName: sanitizeFilename(result.title, '.mp3')
         }, { quoted: anony });
 
         await conn.sendMessage(from, { react: { text: '✅', key: m.key } });
-
     } catch (e) {
-        console.error(e);
+        console.error('[ᴘʟᴀʏ ᴇʀʀᴏʀ]', e);
         await conn.sendMessage(from, { react: { text: '❌', key: m.key } });
-        reply("ᴇʀʀᴏʀ ᴏᴄᴄᴜʀʀᴇᴅ ᴡʜɪʟᴇ ᴅᴏᴡɴʟᴏᴀᴅɪɴɢ ᴀᴜᴅɪᴏ");
+        reply(`ᴇʀʀᴏʀ: ${e.message}`);
     }
 });
 
-// --- PLAY2 Command (Returns as Document) ---
+// --- PLAY2 ---
 cmd({
     pattern: "play2",
     alias: ["yta2", "song2"],
     react: "🎵",
     desc: "Download high quality YouTube audio",
-    category: "download",
+    category: "media",
     use: ".play2 <song name or url>",
     filename: __filename
 }, async (conn, mek, m, { from, q, reply }) => {
     try {
-        if (!q) return reply("ᴘʟᴇᴀsᴇ ᴘʀᴏᴠɪᴅᴇ ᴀ sᴏɴɢ ɴᴀᴍᴇ\nᴇxᴀᴍᴘʟᴇ: .ᴘʟᴀʏ2 ᴛᴜᴍ ʜɪ ʜᴏ");
+        if (!q) return reply("ᴘʟᴇᴀꜱᴇ ᴘʀᴏᴠɪᴅᴇ ᴀ ꜱᴏɴɢ ɴᴀᴍᴇ\nᴇxᴀᴍᴘʟᴇ: .ᴘʟᴀʏ2 ᴛᴜᴍ ʜɪ ʜᴏ");
 
         let ytUrl = q;
         if (!isYoutubeUrl(q)) {
             const searchResults = await yts(q);
             if (!searchResults.videos || !searchResults.videos.length) {
-                return reply("❌ ɴᴏ ʀᴇsᴜʟᴛs ꜰᴏᴜɴᴅ. ᴛʀʏ ᴀ ᴅɪꜰꜰᴇʀᴇɴᴛ sᴇᴀʀᴄʜ ᴛᴇʀᴍ.");
+                return reply("❌ ɴᴏ ʀᴇꜱᴜʟᴛꜱ ꜰᴏᴜɴᴅ. ᴛʀʏ ᴀ ᴅɪꜰꜰᴇʀᴇɴᴛ ꜱᴇᴀʀᴄʜ ᴛᴇʀᴍ.");
             }
             ytUrl = searchResults.videos[0].url;
         }
@@ -206,22 +212,18 @@ cmd({
             }, { quoted: anony });
         }
 
-        // Fetch the audio buffer to send as a document
-        const audioRes = await fetch(result.download);
-        const arrayBuffer = await audioRes.arrayBuffer();
-        const audioBuffer = Buffer.from(arrayBuffer);
+        const buffer = await downloadBuffer(result.download);
 
         await conn.sendMessage(from, {
-            document: audioBuffer,
+            document: buffer,
             mimetype: 'audio/mpeg',
             fileName: sanitizeFilename(result.title, '.mp3')
         }, { quoted: anony });
 
         await conn.sendMessage(from, { react: { text: "✅", key: mek.key } });
-
     } catch (error) {
-        console.error('Play2 command error:', error);
+        console.error('[ᴘʟᴀʏ2 ᴇʀʀᴏʀ]', error);
         await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
-        reply("⚠️ ᴀɴ ᴜɴᴇxᴘᴇᴄᴛᴇᴅ ᴇʀʀᴏʀ ᴏᴄᴄᴜʀʀᴇᴅ. ᴘʟᴇᴀsᴇ ᴛʀʏ ᴀɢᴀɪɴ.");
+        reply(`⚠️ ᴇʀʀᴏʀ: ${error.message}`);
     }
 });
