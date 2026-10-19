@@ -20,25 +20,20 @@ const HEADERS = {
     'Referer': 'https://www.youtube.com/'
 };
 
-async function fetchYtApi(type, videoUrl) {
-    let url;
-    if (type === 'mp3') {
-        url = `https://api.princetechn.com/api/download/dlmp3?apikey=prince&url=${encodeURIComponent(videoUrl)}`;
-    } else if (type === 'mp4') {
-        url = `https://api.princetechn.com/api/download/dlmp4?apikey=prince&url=${encodeURIComponent(videoUrl)}`;
-    }
+async function fetchYtApi(videoUrl) {
+    const url = `https://yt-dl.officialhectormanuel.workers.dev/?url=${encodeURIComponent(videoUrl)}`;
 
     console.log(`[ᴘʟᴀʏ] ꜰᴇᴛᴄʜɪɴɢ ᴀᴘɪ: ${url}`);
     const res = await fetch(url, { headers: HEADERS, redirect: 'follow' });
     const data = await res.json();
     console.log(`[ᴘʟᴀʏ] ᴀᴘɪ ʀᴇꜱᴘᴏɴꜱᴇ:`, JSON.stringify(data).substring(0, 400));
 
-    if (!data || !data.success || !data.result) return null;
+    if (!data) return null;
 
-    const resultData = data.result;
-    let downloadUrl = resultData.dl_link || resultData.url || resultData.download || resultData.link;
-    let title = resultData.title || 'ᴜɴᴋɴᴏᴡɴ ᴛɪᴛʟᴇ';
-    let cover = resultData.thumbnail || null;
+    // Normalize the response (Hector API may use 'url', 'download', or 'link')
+    let downloadUrl = data.url || data.download || data.link || data.result?.url || data.result?.download;
+    let title = data.title || data.result?.title || 'ᴜɴᴋɴᴏᴡɴ ᴛɪᴛʟᴇ';
+    let cover = data.thumbnail || data.result?.thumbnail || null;
 
     if (!downloadUrl) return null;
     return { download: downloadUrl, title, cover };
@@ -79,7 +74,7 @@ cmd({
         }
         console.log(`[ᴘʟᴀʏ] ʏᴛ ᴜʀʟ: ${ytUrl}`);
 
-        const result = await fetchYtApi('mp3', ytUrl);
+        const result = await fetchYtApi(ytUrl);
         if (!result) return reply("❌ ꜰᴀɪʟᴇᴅ ᴛᴏ ɢᴇᴛ ᴅᴏᴡɴʟᴏᴀᴅ ʟɪɴᴋ ꜰʀᴏᴍ ᴀᴘɪ.");
 
         const buffer = await downloadBuffer(result.download);
@@ -120,7 +115,7 @@ cmd({
             ytUrl = searchResults.videos[0].url;
         }
 
-        const result = await fetchYtApi('mp4', ytUrl);
+        const result = await fetchYtApi(ytUrl);
         if (!result) return reply("❌ ꜰᴀɪʟᴇᴅ ᴛᴏ ɢᴇᴛ ᴅᴏᴡɴʟᴏᴀᴅ ʟɪɴᴋ ꜰʀᴏᴍ ᴀᴘɪ.");
 
         const buffer = await downloadBuffer(result.download);
@@ -161,7 +156,7 @@ cmd({
             ytUrl = searchResults.videos[0].url;
         }
 
-        const result = await fetchYtApi('mp3', ytUrl);
+        const result = await fetchYtApi(ytUrl);
         if (!result) return reply("ᴀᴜᴅɪᴏ ᴅᴏᴡɴʟᴏᴀᴅ ꜰᴀɪʟᴇᴅ");
 
         const buffer = await downloadBuffer(result.download);
@@ -202,7 +197,7 @@ cmd({
             ytUrl = searchResults.videos[0].url;
         }
 
-        const result = await fetchYtApi('mp3', ytUrl);
+        const result = await fetchYtApi(ytUrl);
         if (!result) return reply("❌ ꜰᴀɪʟᴇᴅ ᴛᴏ ꜰᴇᴛᴄʜ ᴀᴜᴅɪᴏ. ᴛʀʏ ᴀɢᴀɪɴ ʟᴀᴛᴇʀ.");
 
         if (result.cover) {
