@@ -32,15 +32,15 @@ function formatBytes(bytes) {
 
 
 // ──────────────────────────────────────────────────────────────
-// CONFIG — Your Catbox userhash is hardcoded below
+// CONFIG
 // ──────────────────────────────────────────────────────────────
 const CATBOX_USERHASH = 'c8f243c132e5d3e01b89bf27a';
 
 // ──────────────────────────────────────────────────────────────
+// Uploaders
+// ──────────────────────────────────────────────────────────────
 
-/**
- * Upload a buffer to Catbox using your userhash.
- */
+// 1. Catbox (with userhash)
 async function uploadToCatbox(buffer, filename) {
     const form = new FormData();
     form.append('reqtype', 'fileupload');
@@ -49,55 +49,71 @@ async function uploadToCatbox(buffer, filename) {
 
     const res = await axios.post('https://catbox.moe/user/api.php', form, {
         headers: form.getHeaders(),
-        timeout: 30000,
+        timeout: 20000,
         validateStatus: () => true,
         maxBodyLength: Infinity
     });
 
     const body = typeof res.data === 'string' ? res.data.trim() : '';
     if (res.status !== 200 || !body.startsWith('https://files.catbox.moe/')) {
-        throw new Error(`Catbox upload failed (${res.status}): ${body.slice(0, 120)}`);
+        throw new Error(`Catbox blocked (${res.status})`);
     }
     return body;
 }
 
-/**
- * Fallback uploader — 0x0.st (anonymous, temporary, works from datacenters).
- * Used if Catbox rejects the upload for any reason.
- */
-async function uploadTo0x0(buffer, filename) {
+// 2. Tmpfiles.org (Very reliable, 1 hour expiry)
+async function uploadToTmpfiles(buffer, filename) {
     const form = new FormData();
     form.append('file', buffer, { filename });
 
-    const res = await axios.post('https://0x0.st', form, {
-        headers: { ...form.getHeaders(), 'User-Agent': 'PRIME-RIDZ/1.0' },
-        timeout: 30000,
-        validateStatus: () => true,
-        maxBodyLength: Infinity
+    const res = await axios.post('https://tmpfiles.org/api/v1/upload', form, {
+        headers: form.getHeaders(),
+        timeout: 20000
     });
 
-    const body = typeof res.data === 'string' ? res.data.trim() : '';
-    if (res.status !== 200 || !/^https?:\/\//.test(body)) {
-        throw new Error(`0x0 upload failed (${res.status}): ${body.slice(0, 120)}`);
+    if (res.data && res.data.status === 'success' && res.data.data?.url) {
+        // Tmpfiles URL needs to be formatted for direct download
+        return res.data.data.url.replace('https://tmpfiles.org/', 'https://tmpfiles.org/dl/');
     }
-    return body;
+    throw new Error('Tmpfiles upload failed');
 }
 
-/**
- * Upload with automatic fallback: Catbox → 0x0.st
- */
+// 3. Uguu.se (Good for temporary images, 3 hour expiry)
+async function uploadToUguu(buffer, filename) {
+    const form = new FormData();
+    form.append('files[]', buffer, { filename });
+
+    const res = await axios.post('https://uguu.se/upload.php', form, {
+        headers: form.getHeaders(),
+        timeout: 20000
+    });
+
+    if (res.data && res.data.success && res.data.files && res.data.files[0]?.url) {
+        return res.data.files[0].url;
+    }
+    throw new Error('Uguu upload failed');
+}
+
+// ──────────────────────────────────────────────────────────────
+// Auto-Fallback Logic
+// ──────────────────────────────────────────────────────────────
 async function uploadImage(buffer, filename) {
     try {
         return await uploadToCatbox(buffer, filename);
-    } catch (e) {
-        console.warn('[uploader] Catbox failed, trying 0x0.st:', e.message);
-        return await uploadTo0x0(buffer, filename);
+    } catch (e1) {
+        console.warn(`[uploader] Catbox failed (${e1.message}). Trying Tmpfiles...`);
+        try {
+            return await uploadToTmpfiles(buffer, filename);
+        } catch (e2) {
+            console.warn(`[uploader] Tmpfiles failed (${e2.message}). Trying Uguu...`);
+            return await uploadToUguu(buffer, filename);
+        }
     }
 }
 
-/**
- * Shared pipeline for all image-edit commands.
- */
+// ──────────────────────────────────────────────────────────────
+// Shared Pipeline
+// ──────────────────────────────────────────────────────────────
 async function runImageEdit(ctx, message, apiUrl, caption) {
     const { from, reply, conn } = ctx;
 
@@ -115,10 +131,9 @@ async function runImageEdit(ctx, message, apiUrl, caption) {
 
     try {
         const buffer = await quoted.download();
-        // console.log(`[image-edit] received ${formatBytes(buffer.length)}`);
+        const filename = `img_${Date.now()}${ext}`;
 
         // 1) Upload source
-        const filename = `img_${Date.now()}${ext}`;
         const uploadedUrl = await uploadImage(buffer, filename);
 
         // 2) Call the edit API
@@ -178,7 +193,6 @@ for (const c of IMAGE_EDIT_COMMANDS) {
         use: `.${c.pattern} [reply to image]`,
         filename: __filename
     }, async (conn, message, m, ctx) => {
-        // Attach conn to ctx so the helper can send the final message
         ctx.conn = conn;
         await runImageEdit(ctx, message, c.api, c.caption);
     });
