@@ -3372,54 +3372,7 @@ cmd({
   await reply(`✅ ᴄᴜsᴛᴏᴍ ʀᴇᴀᴄᴛɪᴏɴ ᴇᴍᴏᴊɪs ᴜᴘᴅᴀᴛᴇᴅ ᴛᴏ:\n${emojiList}`);
 });
 
-cmd({
-  pattern: "play4",
-  alias: ["ytmp3"],
-  desc: "Download YouTube song (MP3)",
-  category: "download",
-  use: ".play4 <song name>",
-  react: "🔰",
-  filename: __filename
-}, async (conn, mek, m, { from, reply, q }) => {
-  try {
-    if (!q) return reply("❗ ᴘʟᴇᴀsᴇ ᴘʀᴏᴠɪᴅᴇ ᴀ sᴏɴɢ ɴᴀᴍᴇ.");
 
-    await conn.sendMessage(from, { react: { text: '⏳', key: m.key } });
-
-    const searchResults = await yts(q);
-    if (!searchResults.videos || searchResults.videos.length === 0) {
-      await conn.sendMessage(from, { react: { text: '❌', key: m.key } });
-      return reply("❌ ɴᴏ ᴀᴜᴅɪᴏ ꜰᴏᴜɴᴅ ᴡɪᴛʜ ᴛʜᴀᴛ ɴᴀᴍᴇ.");
-    }
-
-    const video = searchResults.videos[0];
-    const videoUrl = video.url;
-
-    const apiUrl = `https://api.nexoracle.com/downloader/yt-audio2?apikey=MatrixZatKing&url=${encodeURIComponent(videoUrl)}`;
-    const res = await fetch(apiUrl);
-    const data = await res.json();
-
-    if (!data.status || !data.result?.audio) {
-      await conn.sendMessage(from, { react: { text: '❌', key: m.key } });
-      return reply("❌ ꜰᴀɪʟᴇᴅ ᴛᴏ ᴅᴏᴡɴʟᴏᴀᴅ ᴀᴜᴅɪᴏ. ᴀᴘɪ ᴇʀʀᴏʀ.");
-    }
-
-    await conn.sendMessage(from, {
-      audio: { url: data.result.audio },
-      mimetype: "audio/mpeg",
-      fileName: `${data.result.title || video.title}.mp3`
-    }, { quoted: anony });
-
-    await reply(`🎵 *${data.result.title || video.title}*\n⏳ ${video.timestamp || "ɴ/ᴀ"}\n📊 ǫᴜᴀʟɪᴛʏ: ${data.result.quality || 'ᴍᴘ3'}\nᴅᴏᴡɴʟᴏᴀᴅᴇᴅ sᴜᴄᴄᴇssꜰᴜʟʟʏ ✅`);
-
-    await conn.sendMessage(from, { react: { text: '✅', key: m.key } });
-
-  } catch (err) {
-    console.error(err);
-    await conn.sendMessage(from, { react: { text: '❌', key: m.key } });
-    reply("⚠️ ᴇʀʀᴏʀ ᴏᴄᴄᴜʀʀᴇᴅ. ᴛʀʏ ᴀɢᴀɪɴ.");
-  }
-});
 
 cmd({
     pattern: "yts",
