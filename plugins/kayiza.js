@@ -2136,7 +2136,7 @@ async (conn, mek, m, { from, args, q, reply }) => {
                 ptt: false
             }, { quoted: anony });
         }
-        */
+      
         
     } catch (e) {
         console.error("ᴇʀʀᴏʀ ɪɴ ᴛɪᴋᴛᴏᴋ ᴅᴏᴡɴʟᴏᴀᴅᴇʀ ᴄᴏᴍᴍᴀɴᴅ:", e);
