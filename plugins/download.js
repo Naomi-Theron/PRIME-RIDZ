@@ -185,6 +185,57 @@ cmd({
     }
 });
 
+// --- PLAY4 (Nexoracle → Hector API) ---
+cmd({
+  pattern: "play4",
+  alias: ["playaudio"],
+  desc: "Download YouTube song (MP3)",
+  category: "download",
+  use: ".play4 <song name>",
+  react: "🔰",
+  filename: __filename
+}, async (conn, mek, m, { from, reply, q }) => {
+  try {
+    if (!q) return reply("❗ ᴘʟᴇᴀꜱᴇ ᴘʀᴏᴠɪᴅᴇ ᴀ ꜱᴏɴɢ ɴᴀᴍᴇ.");
+
+    await conn.sendMessage(from, { react: { text: '⏳', key: m.key } });
+
+    const searchResults = await yts(q);
+    if (!searchResults.videos || searchResults.videos.length === 0) {
+      await conn.sendMessage(from, { react: { text: '❌', key: m.key } });
+      return reply("❌ ɴᴏ ᴀᴜᴅɪᴏ ꜰᴏᴜɴᴅ ᴡɪᴛʜ ᴛʜᴀᴛ ɴᴀᴍᴇ.");
+    }
+
+    const video = searchResults.videos[0];
+    const videoUrl = video.url;
+
+    // Use the same helper as your working play/ytmp3 commands
+    const result = await fetchYtApi(videoUrl, 'audio');
+
+    if (!result) {
+      await conn.sendMessage(from, { react: { text: '❌', key: m.key } });
+      return reply("❌ ꜰᴀɪʟᴇᴅ ᴛᴏ ᴅᴏᴡɴʟᴏᴀᴅ ᴀᴜᴅɪᴏ. ᴀᴘɪ ᴇʀʀᴏʀ.");
+    }
+
+    const buffer = await downloadBuffer(result.download);
+
+    await conn.sendMessage(from, {
+      audio: buffer,
+      mimetype: "audio/mpeg",
+      fileName: sanitizeFilename(result.title || video.title, '.mp3')
+    }, { quoted: anony });
+
+    await reply(`🎵 *${result.title || video.title}*\n⏳ ${video.timestamp || "ɴ/ᴀ"}\nᴅᴏᴡɴʟᴏᴀᴅᴇᴅ ꜱᴜᴄᴄᴇꜱꜱꜰᴜʟʟʏ ✅`);
+
+    await conn.sendMessage(from, { react: { text: '✅', key: m.key } });
+
+  } catch (err) {
+    console.error('[ᴘʟᴀʏ4 ᴇʀʀᴏʀ]', err);
+    await conn.sendMessage(from, { react: { text: '❌', key: m.key } });
+    reply(`⚠️ ᴇʀʀᴏʀ: ${err.message}`);
+  }
+});
+
 // --- PLAY2 ---
 cmd({
     pattern: "play2",
