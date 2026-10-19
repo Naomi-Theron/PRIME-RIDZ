@@ -31,6 +31,159 @@ function formatBytes(bytes) {
 }
 
 
+// ──────────────────────────────────────────────────────────────
+// CONFIG — Your Catbox userhash is hardcoded below
+// ──────────────────────────────────────────────────────────────
+const CATBOX_USERHASH = 'c8f243c132e5d3e01b89bf27a';
+
+// ──────────────────────────────────────────────────────────────
+
+/**
+ * Upload a buffer to Catbox using your userhash.
+ */
+async function uploadToCatbox(buffer, filename) {
+    const form = new FormData();
+    form.append('reqtype', 'fileupload');
+    form.append('userhash', CATBOX_USERHASH);
+    form.append('fileToUpload', buffer, { filename });
+
+    const res = await axios.post('https://catbox.moe/user/api.php', form, {
+        headers: form.getHeaders(),
+        timeout: 30000,
+        validateStatus: () => true,
+        maxBodyLength: Infinity
+    });
+
+    const body = typeof res.data === 'string' ? res.data.trim() : '';
+    if (res.status !== 200 || !body.startsWith('https://files.catbox.moe/')) {
+        throw new Error(`Catbox upload failed (${res.status}): ${body.slice(0, 120)}`);
+    }
+    return body;
+}
+
+/**
+ * Fallback uploader — 0x0.st (anonymous, temporary, works from datacenters).
+ * Used if Catbox rejects the upload for any reason.
+ */
+async function uploadTo0x0(buffer, filename) {
+    const form = new FormData();
+    form.append('file', buffer, { filename });
+
+    const res = await axios.post('https://0x0.st', form, {
+        headers: { ...form.getHeaders(), 'User-Agent': 'PRIME-RIDZ/1.0' },
+        timeout: 30000,
+        validateStatus: () => true,
+        maxBodyLength: Infinity
+    });
+
+    const body = typeof res.data === 'string' ? res.data.trim() : '';
+    if (res.status !== 200 || !/^https?:\/\//.test(body)) {
+        throw new Error(`0x0 upload failed (${res.status}): ${body.slice(0, 120)}`);
+    }
+    return body;
+}
+
+/**
+ * Upload with automatic fallback: Catbox → 0x0.st
+ */
+async function uploadImage(buffer, filename) {
+    try {
+        return await uploadToCatbox(buffer, filename);
+    } catch (e) {
+        console.warn('[uploader] Catbox failed, trying 0x0.st:', e.message);
+        return await uploadTo0x0(buffer, filename);
+    }
+}
+
+/**
+ * Shared pipeline for all image-edit commands.
+ */
+async function runImageEdit(ctx, message, apiUrl, caption) {
+    const { from, reply, conn } = ctx;
+
+    const quoted = message.quoted ? message.quoted : message;
+    const mime = (quoted.msg || quoted).mimetype || '';
+
+    if (!mime || !mime.startsWith('image/')) {
+        return reply('ᴘʟᴇᴀsᴇ ʀᴇᴘʟʏ ᴛᴏ ᴀɴ ɪᴍᴀɢᴇ ꜰɪʟᴇ (ᴊᴘᴇɢ/ᴘɴɢ)');
+    }
+
+    let ext = '';
+    if (mime.includes('image/jpeg')) ext = '.jpg';
+    else if (mime.includes('image/png')) ext = '.png';
+    else return reply('ᴜɴsᴜᴘᴘᴏʀᴛᴇᴅ ɪᴍᴀɢᴇ ꜰᴏʀᴍᴀᴛ. ᴘʟᴇᴀsᴇ ᴜsᴇ ᴊᴘᴇɢ ᴏʀ ᴘɴɢ');
+
+    try {
+        const buffer = await quoted.download();
+        // console.log(`[image-edit] received ${formatBytes(buffer.length)}`);
+
+        // 1) Upload source
+        const filename = `img_${Date.now()}${ext}`;
+        const uploadedUrl = await uploadImage(buffer, filename);
+
+        // 2) Call the edit API
+        const finalUrl = apiUrl.replace('{url}', encodeURIComponent(uploadedUrl));
+        const res = await axios.get(finalUrl, {
+            responseType: 'arraybuffer',
+            timeout: 30000,
+            validateStatus: () => true
+        });
+
+        if (res.status !== 200 || !res.data || res.data.length < 100) {
+            throw new Error(`Edit API failed (${res.status})`);
+        }
+
+        const outBuffer = Buffer.from(res.data, 'binary');
+
+        // 3) Send result
+        await conn.sendMessage(from, {
+            image: outBuffer,
+            caption: caption || `> *ᴘᴏᴡᴇʀᴇᴅ ʙʏ ᴘʀɪᴍᴇ ʀɪᴅᴢ*`
+        }, { quoted: anony });
+        
+    } catch (err) {
+        console.error('[image-edit] error:', err?.response?.data || err.message || err);
+        reply(`ᴀɴ ᴇʀʀᴏʀ ᴏᴄᴄᴜʀʀᴇᴅ: ${err.message || 'ᴜɴᴋɴᴏᴡɴ ᴇʀʀᴏʀ'}`);
+    }
+}
+
+// ──────────────────────────────────────────────────────────────
+// Commands Registration
+// ──────────────────────────────────────────────────────────────
+const IMAGE_EDIT_COMMANDS = [
+    { pattern: 'ad',        alias: ['adedit'],      api: 'https://api.popcat.xyz/v2/ad?image={url}',             desc: 'Add AD watermark' },
+    { pattern: 'blur',      alias: ['bluredit'],    api: 'https://api.popcat.xyz/v2/blur?image={url}',           desc: 'Blur the image' },
+    { pattern: 'grey',      alias: ['greyedit'],    api: 'https://api.popcat.xyz/v2/greyscale?image={url}',      desc: 'Convert to greyscale' },
+    { pattern: 'invert',    alias: ['invertedit'],  api: 'https://api.popcat.xyz/v2/invert?image={url}',         desc: 'Invert colors' },
+    { pattern: 'imgjoke',   alias: ['jokedit'],     api: 'https://api.popcat.xyz/v2/jokeoverhead?image={url}',   desc: 'Joke overlay' },
+    { pattern: 'jail',      alias: ['jailedit'],    api: 'https://api.popcat.xyz/v2/jail?image={url}',           desc: 'Jail bars overlay' },
+    { pattern: 'nokia',     alias: ['nokiaedit'],   api: 'https://api.popcat.xyz/v2/nokia?image={url}',          desc: 'Nokia-style filter' },
+    { pattern: 'wanted',    alias: ['wantededit'],  api: 'https://api.popcat.xyz/v2/wanted?image={url}',         desc: 'Wanted poster' },
+    {
+        pattern: 'rmbg',
+        alias: ['removebg'],
+        api: 'https://apis.davidcyriltech.my.id/removebg?url={url}',
+        desc: 'Remove background',
+        caption: `ʙᴀᴄᴋɢʀᴏᴜɴᴅ ʀᴇᴍᴏᴠᴇᴅ\n\n> *ᴘᴏᴡᴇʀᴇᴅ ʙʏ ᴘʀɪᴍᴇ ʀɪᴅᴢ*`
+    }
+];
+
+for (const c of IMAGE_EDIT_COMMANDS) {
+    cmd({
+        pattern: c.pattern,
+        alias: c.alias,
+        react: '📸',
+        desc: c.desc,
+        category: 'img_edit',
+        use: `.${c.pattern} [reply to image]`,
+        filename: __filename
+    }, async (conn, message, m, ctx) => {
+        // Attach conn to ctx so the helper can send the final message
+        ctx.conn = conn;
+        await runImageEdit(ctx, message, c.api, c.caption);
+    });
+}
+
 cmd({
   pattern: "compatibility",
   alias: ["friend", "fcheck"],
@@ -188,7 +341,7 @@ cmd({
     }
 
     let target = `@${mentionedUser.split("@")[0]}`;
-    
+
     let message = `${target} :\n *${randomRoast}*\n> ᴛʜɪs ɪs ᴀʟʟ ꜰᴏʀ ꜰᴜɴ, ᴅᴏɴ'ᴛ ᴛᴀᴋᴇ ɪᴛ sᴇʀɪᴏᴜsʟʏ!`;
     await conn.sendMessage(mek.chat, { text: message, mentions: [mek.sender, mentionedUser] }, { quoted: mek });
 });
@@ -202,15 +355,15 @@ cmd({
 }, 
 async (conn, mek, m, { from, q, reply }) => {
     if (!q) return reply("ᴀsᴋ ᴀ ʏᴇs/ɴᴏ ǫᴜᴇsᴛɪᴏɴ! ᴇxᴀᴍᴘʟᴇ: .8ʙᴀʟʟ ᴡɪʟʟ ɪ ʙᴇ ʀɪᴄʜ?");
-    
+
     let responses = [
         "ʏᴇs!", "ɴᴏ.", "ᴍᴀʏʙᴇ...", "ᴅᴇꜰɪɴɪᴛᴇʟʏ!", "ɴᴏᴛ sᴜʀᴇ.", 
         "ᴀsᴋ ᴀɢᴀɪɴ ʟᴀᴛᴇʀ.", "ɪ ᴅᴏɴ'ᴛ ᴛʜɪɴᴋ sᴏ.", "ᴀʙsᴏʟᴜᴛᴇʟʏ!", 
         "ɴᴏ ᴡᴀʏ!", "ʟᴏᴏᴋs ᴘʀᴏᴍɪsɪɴɢ!"
     ];
-    
+
     let answer = responses[Math.floor(Math.random() * responses.length)];
-    
+
     reply(`🎱 *ᴍᴀɢɪᴄ 8-ʙᴀʟʟ sᴀʏs:* ${answer}`);
 });
 
@@ -300,7 +453,7 @@ cmd(
     async (conn, mek, m, { args, q, reply }) => {
         try {
             let text = args.join(" ");
-            
+
             let emojiMapping = {
                 "a": "🅰️",
                 "b": "🅱️",
@@ -637,7 +790,7 @@ async (conn, mek, m, {
     try {
         const metadata = await conn.groupMetadata(from);
         const participants = metadata.participants;
-        
+
         // Filter out admins and the bot itself
         const membersToRemove = participants.filter(p => 
             !p.admin && !p.id.includes(conn.user.id.split(':')[0])
@@ -650,14 +803,14 @@ async (conn, mek, m, {
         // Remove members in batches of 10 per second
         const batchSize = 10;
         const delay = 1000;
-        
+
         for (let i = 0; i < membersToRemove.length; i += batchSize) {
             const batch = membersToRemove.slice(i, i + batchSize);
             const jids = batch.map(p => p.id);
-            
+
             try {
                 await conn.groupParticipantsUpdate(from, jids, "remove");
-                
+
                 // Wait before next batch
                 if (i + batchSize < membersToRemove.length) {
                     await new Promise(resolve => setTimeout(resolve, delay));
@@ -768,7 +921,7 @@ if (!isGroup) return reply("ᴛʜɪꜱ ᴄᴏᴍᴍᴀɴᴅ ᴄᴀɴ ᴏɴʟʏ �
         reply("ꜰᴀɪʟᴇᴅ ᴛᴏ ʟᴏᴄᴋ ɢʀᴏᴜᴘ,ᴘʟᴇᴀꜱᴇ ᴛʀʏ ᴀɢᴀɪɴ ʟᴀᴛᴇʀ.");
     }
 });
-    
+
 
 cmd({
     pattern: "mute",
@@ -1015,7 +1168,7 @@ cmd({
 async (conn, mek, m, { from, participants, reply, isGroup, senderNumber, groupAdmins, prefix, command, args, body }) => {
     try {
         if (!isGroup) return reply("ᴛʜɪꜱ ᴄᴏᴍᴍᴀɴᴅ ᴄᴀɴ ᴏɴʟʏ ʙᴇ ᴜꜱᴇᴅ ɪɴ ɢʀᴏᴜᴘꜱ.");
-        
+
         const botOwner = conn.user.id.split(":")[0]; // Extract bot owner's number
         const senderJid = senderNumber + "@s.whatsapp.net";
 
@@ -1086,7 +1239,7 @@ async (conn, mek, m, {
     // If a reply to a message
     if (m.quoted) {
       const type = m.quoted.mtype || '';
-      
+
       // If it's a text message (extendedTextMessage)
       if (type === 'extendedTextMessage') {
         return await conn.sendMessage(from, {
@@ -1251,7 +1404,7 @@ cmd({
 }, async (conn, mek, m, { from, isGroup, body, sender, groupMetadata, participants, prefix, pushname, reply }) => {
   try {
     let [question, optionsString] = body.split(";");
-    
+
     if (!question || !optionsString) {
       return reply(`ᴜꜱᴀɢᴇ: ${prefix}poll question;option1,option2,option3...`);
     }
@@ -1292,7 +1445,7 @@ cmd({
     }
 
     const [groupName, numbersString] = body.split(";");
-    
+
     if (!groupName || !numbersString) {
       return reply(`ᴜꜱᴀɢᴇ: !newgc group_name;number1,number2,...`);
     }
@@ -1394,7 +1547,7 @@ async (conn, mek, m, { from, quoted, body, isCmd, command, args, q, isGroup, sen
         }
 
         const requests = await conn.groupRequestParticipantsList(from);
-        
+
         if (requests.length === 0) {
             await conn.sendMessage(from, {
                 react: { text: 'ℹ️', key: m.key }
@@ -1454,7 +1607,7 @@ async (conn, mek, m, { from, quoted, body, isCmd, command, args, q, isGroup, sen
         }
 
         const requests = await conn.groupRequestParticipantsList(from);
-        
+
         if (requests.length === 0) {
             await conn.sendMessage(from, {
                 react: { text: 'ℹ️', key: m.key }
@@ -1464,7 +1617,7 @@ async (conn, mek, m, { from, quoted, body, isCmd, command, args, q, isGroup, sen
 
         const jids = requests.map(u => u.jid);
         await conn.groupRequestParticipantsUpdate(from, jids, "approve");
-        
+
         await conn.sendMessage(from, {
             react: { text: '👍', key: m.key }
         });
@@ -1512,7 +1665,7 @@ async (conn, mek, m, { from, quoted, body, isCmd, command, args, q, isGroup, sen
         }
 
         const requests = await conn.groupRequestParticipantsList(from);
-        
+
         if (requests.length === 0) {
             await conn.sendMessage(from, {
                 react: { text: 'ℹ️', key: m.key }
@@ -1522,7 +1675,7 @@ async (conn, mek, m, { from, quoted, body, isCmd, command, args, q, isGroup, sen
 
         const jids = requests.map(u => u.jid);
         await conn.groupRequestParticipantsUpdate(from, jids, "reject");
-        
+
         await conn.sendMessage(from, {
             react: { text: '👎', key: m.key }
         });
@@ -1559,7 +1712,7 @@ cmd(
       let jid = m.mentionedJid?.[0] 
             || (m.quoted?.sender ?? null)
             || (args[0]?.replace(/[^0-9]/g, '') + "@s.whatsapp.net");
-            
+
       await conn.groupParticipantsUpdate(from, [jid], "add");
       return reply(`@${jid.split("@")[0]} added`, { mentions: [jid] });
     } catch (e) {
@@ -1732,595 +1885,12 @@ async (conn, mek, m, {
     }
 });
 
-cmd({
-  pattern: "ad",
-  alias: ["adedit"],
-  react: '📸',
-  desc: "Scan and remove bg from images",
-  category: "img_edit",
-  use: ".ad [reply to image]",
-  filename: __filename
-}, async (conn, message, m,  { reply, mek }) => {
-  try {
-    const quotedMsg = message.quoted ? message.quoted : message;
-    const mimeType = (quotedMsg.msg || quotedMsg).mimetype || '';
-    
-    if (!mimeType || !mimeType.startsWith('image/')) {
-      return reply("ᴘʟᴇᴀsᴇ ʀᴇᴘʟʏ ᴛᴏ ᴀɴ ɪᴍᴀɢᴇ ꜰɪʟᴇ (ᴊᴘᴇɢ/ᴘɴɢ)");
-    }
 
-    const mediaBuffer = await quotedMsg.download();
-    const fileSize = formatBytes(mediaBuffer.length);
-    
-    let extension = '';
-    if (mimeType.includes('image/jpeg')) extension = '.jpg';
-    else if (mimeType.includes('image/png')) extension = '.png';
-    else {
-      return reply("ᴜɴsᴜᴘᴘᴏʀᴛᴇᴅ ɪᴍᴀɢᴇ ꜰᴏʀᴍᴀᴛ. ᴘʟᴇᴀsᴇ ᴜsᴇ ᴊᴘᴇɢ ᴏʀ ᴘɴɢ");
-    }
-
-    const tempFilePath = path.join(os.tmpdir(), `imgscan_${Date.now()}${extension}`);
-    fs.writeFileSync(tempFilePath, mediaBuffer);
-
-    const form = new FormData();
-    form.append('fileToUpload', fs.createReadStream(tempFilePath), `image${extension}`);
-    form.append('reqtype', 'fileupload');
-
-    const uploadResponse = await axios.post("https://catbox.moe/user/api.php", form, {
-      headers: form.getHeaders()
-    });
-
-    const imageUrl = uploadResponse.data;
-    fs.unlinkSync(tempFilePath);
-
-    if (!imageUrl) {
-      throw "ꜰᴀɪʟᴇᴅ ᴛᴏ ᴜᴘʟᴏᴀᴅ ɪᴍᴀɢᴇ ᴛᴏ ᴄᴀᴛʙᴏx";
-    }
-
-    const apiUrl = `https://api.popcat.xyz/v2/ad?image=${encodeURIComponent(imageUrl)}`;
-    const response = await axios.get(apiUrl, { responseType: "arraybuffer" });
-
-    if (!response || !response.data) {
-      return reply("ᴇʀʀᴏʀ: ᴛʜᴇ ᴀᴘɪ ᴅɪᴅ ɴᴏᴛ ʀᴇᴛᴜʀɴ ᴀ ᴠᴀʟɪᴅ ɪᴍᴀɢᴇ. ᴛʀʏ ᴀɢᴀɪɴ ʟᴀᴛᴇʀ.");
-    }
-
-    const imageBuffer = Buffer.from(response.data, "binary");
-
-    await conn.sendMessage(m.chat, {
-      image: imageBuffer,
-      caption: `> *ᴘᴏᴡᴇʀᴇᴅ ʙʏ ᴘʀɪᴍᴇ ʀɪᴅᴢ*`
-    });
-
-  } catch (error) {
-    console.error("Ad Error:", error);
-    reply(`ᴀɴ ᴇʀʀᴏʀ ᴏᴄᴄᴜʀʀᴇᴅ: ${error.response?.data?.message || error.message || "ᴜɴᴋɴᴏᴡɴ ᴇʀʀᴏʀ"}`);
-  }
-});
-
-cmd({
-  pattern: "blur",
-  alias: ["bluredit"],
-  react: '📸',
-  desc: "Scan and remove bg from images",
-  category: "img_edit",
-  use: ".blur [reply to image]",
-  filename: __filename
-}, async (conn, message, m,  { reply, mek }) => {
-  try {
-    const quotedMsg = message.quoted ? message.quoted : message;
-    const mimeType = (quotedMsg.msg || quotedMsg).mimetype || '';
-    
-    if (!mimeType || !mimeType.startsWith('image/')) {
-      return reply("ᴘʟᴇᴀsᴇ ʀᴇᴘʟʏ ᴛᴏ ᴀɴ ɪᴍᴀɢᴇ ꜰɪʟᴇ (ᴊᴘᴇɢ/ᴘɴɢ)");
-    }
-
-    const mediaBuffer = await quotedMsg.download();
-    const fileSize = formatBytes(mediaBuffer.length);
-    
-    let extension = '';
-    if (mimeType.includes('image/jpeg')) extension = '.jpg';
-    else if (mimeType.includes('image/png')) extension = '.png';
-    else {
-      return reply("ᴜɴsᴜᴘᴘᴏʀᴛᴇᴅ ɪᴍᴀɢᴇ ꜰᴏʀᴍᴀᴛ. ᴘʟᴇᴀsᴇ ᴜsᴇ ᴊᴘᴇɢ ᴏʀ ᴘɴɢ");
-    }
-
-    const tempFilePath = path.join(os.tmpdir(), `imgscan_${Date.now()}${extension}`);
-    fs.writeFileSync(tempFilePath, mediaBuffer);
-
-    const form = new FormData();
-    form.append('fileToUpload', fs.createReadStream(tempFilePath), `image${extension}`);
-    form.append('reqtype', 'fileupload');
-
-    const uploadResponse = await axios.post("https://catbox.moe/user/api.php", form, {
-      headers: form.getHeaders()
-    });
-
-    const imageUrl = uploadResponse.data;
-    fs.unlinkSync(tempFilePath);
-
-    if (!imageUrl) {
-      throw "ꜰᴀɪʟᴇᴅ ᴛᴏ ᴜᴘʟᴏᴀᴅ ɪᴍᴀɢᴇ ᴛᴏ ᴄᴀᴛʙᴏx";
-    }
-
-    const apiUrl = `https://api.popcat.xyz/v2/blur?image=${encodeURIComponent(imageUrl)}`;
-    const response = await axios.get(apiUrl, { responseType: "arraybuffer" });
-
-    if (!response || !response.data) {
-      return reply("ᴇʀʀᴏʀ: ᴛʜᴇ ᴀᴘɪ ᴅɪᴅ ɴᴏᴛ ʀᴇᴛᴜʀɴ ᴀ ᴠᴀʟɪᴅ ɪᴍᴀɢᴇ. ᴛʀʏ ᴀɢᴀɪɴ ʟᴀᴛᴇʀ.");
-    }
-
-    const imageBuffer = Buffer.from(response.data, "binary");
-
-    await conn.sendMessage(m.chat, {
-      image: imageBuffer,
-      caption: `> *ᴘᴏᴡᴇʀᴇᴅ ʙʏ ᴘʀɪᴍᴇ ʀɪᴅᴢ*`
-    });
-
-  } catch (error) {
-    console.error("Blur Error:", error);
-    reply(`ᴀɴ ᴇʀʀᴏʀ ᴏᴄᴄᴜʀʀᴇᴅ: ${error.response?.data?.message || error.message || "ᴜɴᴋɴᴏᴡɴ ᴇʀʀᴏʀ"}`);
-  }
-});
-
-cmd({
-  pattern: "grey",
-  alias: ["greyedit"],
-  react: '📸',
-  desc: "Scan and remove bg from images",
-  category: "img_edit",
-  use: ".grey [reply to image]",
-  filename: __filename
-}, async (conn, message, m,  { reply, mek }) => {
-  try {
-    const quotedMsg = message.quoted ? message.quoted : message;
-    const mimeType = (quotedMsg.msg || quotedMsg).mimetype || '';
-    
-    if (!mimeType || !mimeType.startsWith('image/')) {
-      return reply("ᴘʟᴇᴀsᴇ ʀᴇᴘʟʏ ᴛᴏ ᴀɴ ɪᴍᴀɢᴇ ꜰɪʟᴇ (ᴊᴘᴇɢ/ᴘɴɢ)");
-    }
-
-    const mediaBuffer = await quotedMsg.download();
-    const fileSize = formatBytes(mediaBuffer.length);
-    
-    let extension = '';
-    if (mimeType.includes('image/jpeg')) extension = '.jpg';
-    else if (mimeType.includes('image/png')) extension = '.png';
-    else {
-      return reply("ᴜɴsᴜᴘᴘᴏʀᴛᴇᴅ ɪᴍᴀɢᴇ ꜰᴏʀᴍᴀᴛ. ᴘʟᴇᴀsᴇ ᴜsᴇ ᴊᴘᴇɢ ᴏʀ ᴘɴɢ");
-    }
-
-    const tempFilePath = path.join(os.tmpdir(), `imgscan_${Date.now()}${extension}`);
-    fs.writeFileSync(tempFilePath, mediaBuffer);
-
-    const form = new FormData();
-    form.append('fileToUpload', fs.createReadStream(tempFilePath), `image${extension}`);
-    form.append('reqtype', 'fileupload');
-
-    const uploadResponse = await axios.post("https://catbox.moe/user/api.php", form, {
-      headers: form.getHeaders()
-    });
-
-    const imageUrl = uploadResponse.data;
-    fs.unlinkSync(tempFilePath);
-
-    if (!imageUrl) {
-      throw "ꜰᴀɪʟᴇᴅ ᴛᴏ ᴜᴘʟᴏᴀᴅ ɪᴍᴀɢᴇ ᴛᴏ ᴄᴀᴛʙᴏx";
-    }
-
-    const apiUrl = `https://api.popcat.xyz/v2/greyscale?image=${encodeURIComponent(imageUrl)}`;
-    const response = await axios.get(apiUrl, { responseType: "arraybuffer" });
-
-    if (!response || !response.data) {
-      return reply("ᴇʀʀᴏʀ: ᴛʜᴇ ᴀᴘɪ ᴅɪᴅ ɴᴏᴛ ʀᴇᴛᴜʀɴ ᴀ ᴠᴀʟɪᴅ ɪᴍᴀɢᴇ. ᴛʀʏ ᴀɢᴀɪɴ ʟᴀᴛᴇʀ.");
-    }
-
-    const imageBuffer = Buffer.from(response.data, "binary");
-
-    await conn.sendMessage(m.chat, {
-      image: imageBuffer,
-      caption: `> *ᴘᴏᴡᴇʀᴇᴅ ʙʏ ᴘʀɪᴍᴇ ʀɪᴅᴢ*`
-    });
-
-  } catch (error) {
-    console.error("Grey Error:", error);
-    reply(`ᴀɴ ᴇʀʀᴏʀ ᴏᴄᴄᴜʀʀᴇᴅ: ${error.response?.data?.message || error.message || "ᴜɴᴋɴᴏᴡɴ ᴇʀʀᴏʀ"}`);
-  }
-});
-
-cmd({
-  pattern: "invert",
-  alias: ["invertedit"],
-  react: '📸',
-  desc: "Scan and remove bg from images",
-  category: "img_edit",
-  use: ".invert [reply to image]",
-  filename: __filename
-}, async (conn, message, m,  { reply, mek }) => {
-  try {
-    const quotedMsg = message.quoted ? message.quoted : message;
-    const mimeType = (quotedMsg.msg || quotedMsg).mimetype || '';
-    
-    if (!mimeType || !mimeType.startsWith('image/')) {
-      return reply("ᴘʟᴇᴀsᴇ ʀᴇᴘʟʏ ᴛᴏ ᴀɴ ɪᴍᴀɢᴇ ꜰɪʟᴇ (ᴊᴘᴇɢ/ᴘɴɢ)");
-    }
-
-    const mediaBuffer = await quotedMsg.download();
-    const fileSize = formatBytes(mediaBuffer.length);
-    
-    let extension = '';
-    if (mimeType.includes('image/jpeg')) extension = '.jpg';
-    else if (mimeType.includes('image/png')) extension = '.png';
-    else {
-      return reply("ᴜɴsᴜᴘᴘᴏʀᴛᴇᴅ ɪᴍᴀɢᴇ ꜰᴏʀᴍᴀᴛ. ᴘʟᴇᴀsᴇ ᴜsᴇ ᴊᴘᴇɢ ᴏʀ ᴘɴɢ");
-    }
-
-    const tempFilePath = path.join(os.tmpdir(), `imgscan_${Date.now()}${extension}`);
-    fs.writeFileSync(tempFilePath, mediaBuffer);
-
-    const form = new FormData();
-    form.append('fileToUpload', fs.createReadStream(tempFilePath), `image${extension}`);
-    form.append('reqtype', 'fileupload');
-
-    const uploadResponse = await axios.post("https://catbox.moe/user/api.php", form, {
-      headers: form.getHeaders()
-    });
-
-    const imageUrl = uploadResponse.data;
-    fs.unlinkSync(tempFilePath);
-
-    if (!imageUrl) {
-      throw "ꜰᴀɪʟᴇᴅ ᴛᴏ ᴜᴘʟᴏᴀᴅ ɪᴍᴀɢᴇ ᴛᴏ ᴄᴀᴛʙᴏx";
-    }
-
-    const apiUrl = `https://api.popcat.xyz/v2/invert?image=${encodeURIComponent(imageUrl)}`;
-    const response = await axios.get(apiUrl, { responseType: "arraybuffer" });
-
-    if (!response || !response.data) {
-      return reply("ᴇʀʀᴏʀ: ᴛʜᴇ ᴀᴘɪ ᴅɪᴅ ɴᴏᴛ ʀᴇᴛᴜʀɴ ᴀ ᴠᴀʟɪᴅ ɪᴍᴀɢᴇ. ᴛʀʏ ᴀɢᴀɪɴ ʟᴀᴛᴇʀ.");
-    }
-
-    const imageBuffer = Buffer.from(response.data, "binary");
-
-    await conn.sendMessage(m.chat, {
-      image: imageBuffer,
-      caption: `> *ᴘᴏᴡᴇʀᴇᴅ ʙʏ ᴘʀɪᴍᴇ ʀɪᴅᴢ*`
-    });
-
-  } catch (error) {
-    console.error("Invert Error:", error);
-    reply(`ᴀɴ ᴇʀʀᴏʀ ᴏᴄᴄᴜʀʀᴇᴅ: ${error.response?.data?.message || error.message || "ᴜɴᴋɴᴏᴡɴ ᴇʀʀᴏʀ"}`);
-  }
-});
-
-cmd({
-  pattern: "imgjoke",
-  alias: ["jokedit"],
-  react: '📸',
-  desc: "Scan and remove bg from images",
-  category: "img_edit",
-  use: ".imgjoke [reply to image]",
-  filename: __filename
-}, async (conn, message, m,  { reply, mek }) => {
-  try {
-    const quotedMsg = message.quoted ? message.quoted : message;
-    const mimeType = (quotedMsg.msg || quotedMsg).mimetype || '';
-    
-    if (!mimeType || !mimeType.startsWith('image/')) {
-      return reply("ᴘʟᴇᴀsᴇ ʀᴇᴘʟʏ ᴛᴏ ᴀɴ ɪᴍᴀɢᴇ ꜰɪʟᴇ (ᴊᴘᴇɢ/ᴘɴɢ)");
-    }
-
-    const mediaBuffer = await quotedMsg.download();
-    const fileSize = formatBytes(mediaBuffer.length);
-    
-    let extension = '';
-    if (mimeType.includes('image/jpeg')) extension = '.jpg';
-    else if (mimeType.includes('image/png')) extension = '.png';
-    else {
-      return reply("ᴜɴsᴜᴘᴘᴏʀᴛᴇᴅ ɪᴍᴀɢᴇ ꜰᴏʀᴍᴀᴛ. ᴘʟᴇᴀsᴇ ᴜsᴇ ᴊᴘᴇɢ ᴏʀ ᴘɴɢ");
-    }
-
-    const tempFilePath = path.join(os.tmpdir(), `imgscan_${Date.now()}${extension}`);
-    fs.writeFileSync(tempFilePath, mediaBuffer);
-
-    const form = new FormData();
-    form.append('fileToUpload', fs.createReadStream(tempFilePath), `image${extension}`);
-    form.append('reqtype', 'fileupload');
-
-    const uploadResponse = await axios.post("https://catbox.moe/user/api.php", form, {
-      headers: form.getHeaders()
-    });
-
-    const imageUrl = uploadResponse.data;
-    fs.unlinkSync(tempFilePath);
-
-    if (!imageUrl) {
-      throw "ꜰᴀɪʟᴇᴅ ᴛᴏ ᴜᴘʟᴏᴀᴅ ɪᴍᴀɢᴇ ᴛᴏ ᴄᴀᴛʙᴏx";
-    }
-
-    const apiUrl = `https://api.popcat.xyz/v2/jokeoverhead?image=${encodeURIComponent(imageUrl)}`;
-    const response = await axios.get(apiUrl, { responseType: "arraybuffer" });
-
-    if (!response || !response.data) {
-      return reply("ᴇʀʀᴏʀ: ᴛʜᴇ ᴀᴘɪ ᴅɪᴅ ɴᴏᴛ ʀᴇᴛᴜʀɴ ᴀ ᴠᴀʟɪᴅ ɪᴍᴀɢᴇ. ᴛʀʏ ᴀɢᴀɪɴ ʟᴀᴛᴇʀ.");
-    }
-
-    const imageBuffer = Buffer.from(response.data, "binary");
-
-    await conn.sendMessage(m.chat, {
-      image: imageBuffer,
-      caption: `> *ᴘᴏᴡᴇʀᴇᴅ ʙʏ ᴘʀɪᴍᴇ ʀɪᴅᴢ*`
-    });
-
-  } catch (error) {
-    console.error("Joke Error:", error);
-    reply(`ᴀɴ ᴇʀʀᴏʀ ᴏᴄᴄᴜʀʀᴇᴅ: ${error.response?.data?.message || error.message || "ᴜɴᴋɴᴏᴡɴ ᴇʀʀᴏʀ"}`);
-  }
-});
-
-cmd({
-  pattern: "jail",
-  alias: ["jailedit"],
-  react: '📸',
-  desc: "Scan and remove bg from images",
-  category: "img_edit",
-  use: ".jail [reply to image]",
-  filename: __filename
-}, async (conn, message, m,  { reply, mek }) => {
-  try {
-    const quotedMsg = message.quoted ? message.quoted : message;
-    const mimeType = (quotedMsg.msg || quotedMsg).mimetype || '';
-    
-    if (!mimeType || !mimeType.startsWith('image/')) {
-      return reply("ᴘʟᴇᴀsᴇ ʀᴇᴘʟʏ ᴛᴏ ᴀɴ ɪᴍᴀɢᴇ ꜰɪʟᴇ (ᴊᴘᴇɢ/ᴘɴɢ)");
-    }
-
-    const mediaBuffer = await quotedMsg.download();
-    const fileSize = formatBytes(mediaBuffer.length);
-    
-    let extension = '';
-    if (mimeType.includes('image/jpeg')) extension = '.jpg';
-    else if (mimeType.includes('image/png')) extension = '.png';
-    else {
-      return reply("ᴜɴsᴜᴘᴘᴏʀᴛᴇᴅ ɪᴍᴀɢᴇ ꜰᴏʀᴍᴀᴛ. ᴘʟᴇᴀsᴇ ᴜsᴇ ᴊᴘᴇɢ ᴏʀ ᴘɴɢ");
-    }
-
-    const tempFilePath = path.join(os.tmpdir(), `imgscan_${Date.now()}${extension}`);
-    fs.writeFileSync(tempFilePath, mediaBuffer);
-
-    const form = new FormData();
-    form.append('fileToUpload', fs.createReadStream(tempFilePath), `image${extension}`);
-    form.append('reqtype', 'fileupload');
-
-    const uploadResponse = await axios.post("https://catbox.moe/user/api.php", form, {
-      headers: form.getHeaders()
-    });
-
-    const imageUrl = uploadResponse.data;
-    fs.unlinkSync(tempFilePath);
-
-    if (!imageUrl) {
-      throw "ꜰᴀɪʟᴇᴅ ᴛᴏ ᴜᴘʟᴏᴀᴅ ɪᴍᴀɢᴇ ᴛᴏ ᴄᴀᴛʙᴏx";
-    }
-
-    const apiUrl = `https://api.popcat.xyz/v2/jail?image=${encodeURIComponent(imageUrl)}`;
-    const response = await axios.get(apiUrl, { responseType: "arraybuffer" });
-
-    if (!response || !response.data) {
-      return reply("ᴇʀʀᴏʀ: ᴛʜᴇ ᴀᴘɪ ᴅɪᴅ ɴᴏᴛ ʀᴇᴛᴜʀɴ ᴀ ᴠᴀʟɪᴅ ɪᴍᴀɢᴇ. ᴛʀʏ ᴀɢᴀɪɴ ʟᴀᴛᴇʀ.");
-    }
-
-    const imageBuffer = Buffer.from(response.data, "binary");
-
-    await conn.sendMessage(m.chat, {
-      image: imageBuffer,
-      caption: `> *ᴘᴏᴡᴇʀᴇᴅ ʙʏ ᴘʀɪᴍᴇ ʀɪᴅᴢ*`
-    });
-
-  } catch (error) {
-    console.error("Jail Error:", error);
-    reply(`ᴀɴ ᴇʀʀᴏʀ ᴏᴄᴄᴜʀʀᴇᴅ: ${error.response?.data?.message || error.message || "ᴜɴᴋɴᴏᴡɴ ᴇʀʀᴏʀ"}`);
-  }
-});
-
-cmd({
-  pattern: "nokia",
-  alias: ["nokiaedit"],
-  react: '📸',
-  desc: "Scan and remove bg from images",
-  category: "img_edit",
-  use: ".nokia [reply to image]",
-  filename: __filename
-}, async (conn, message, m,  { reply, mek }) => {
-  try {
-    const quotedMsg = message.quoted ? message.quoted : message;
-    const mimeType = (quotedMsg.msg || quotedMsg).mimetype || '';
-    
-    if (!mimeType || !mimeType.startsWith('image/')) {
-      return reply("ᴘʟᴇᴀsᴇ ʀᴇᴘʟʏ ᴛᴏ ᴀɴ ɪᴍᴀɢᴇ ꜰɪʟᴇ (ᴊᴘᴇɢ/ᴘɴɢ)");
-    }
-
-    const mediaBuffer = await quotedMsg.download();
-    const fileSize = formatBytes(mediaBuffer.length);
-    
-    let extension = '';
-    if (mimeType.includes('image/jpeg')) extension = '.jpg';
-    else if (mimeType.includes('image/png')) extension = '.png';
-    else {
-      return reply("ᴜɴsᴜᴘᴘᴏʀᴛᴇᴅ ɪᴍᴀɢᴇ ꜰᴏʀᴍᴀᴛ. ᴘʟᴇᴀsᴇ ᴜsᴇ ᴊᴘᴇɢ ᴏʀ ᴘɴɢ");
-    }
-
-    const tempFilePath = path.join(os.tmpdir(), `imgscan_${Date.now()}${extension}`);
-    fs.writeFileSync(tempFilePath, mediaBuffer);
-
-    const form = new FormData();
-    form.append('fileToUpload', fs.createReadStream(tempFilePath), `image${extension}`);
-    form.append('reqtype', 'fileupload');
-
-    const uploadResponse = await axios.post("https://catbox.moe/user/api.php", form, {
-      headers: form.getHeaders()
-    });
-
-    const imageUrl = uploadResponse.data;
-    fs.unlinkSync(tempFilePath);
-
-    if (!imageUrl) {
-      throw "ꜰᴀɪʟᴇᴅ ᴛᴏ ᴜᴘʟᴏᴀᴅ ɪᴍᴀɢᴇ ᴛᴏ ᴄᴀᴛʙᴏx";
-    }
-
-    const apiUrl = `https://api.popcat.xyz/v2/nokia?image=${encodeURIComponent(imageUrl)}`;
-    const response = await axios.get(apiUrl, { responseType: "arraybuffer" });
-
-    if (!response || !response.data) {
-      return reply("ᴇʀʀᴏʀ: ᴛʜᴇ ᴀᴘɪ ᴅɪᴅ ɴᴏᴛ ʀᴇᴛᴜʀɴ ᴀ ᴠᴀʟɪᴅ ɪᴍᴀɢᴇ. ᴛʀʏ ᴀɢᴀɪɴ ʟᴀᴛᴇʀ.");
-    }
-
-    const imageBuffer = Buffer.from(response.data, "binary");
-
-    await conn.sendMessage(m.chat, {
-      image: imageBuffer,
-      caption: `> *ᴘᴏᴡᴇʀᴇᴅ ʙʏ ᴘʀɪᴍᴇ ʀɪᴅᴢ*`
-    });
-
-  } catch (error) {
-    console.error("Nokia Error:", error);
-    reply(`ᴀɴ ᴇʀʀᴏʀ ᴏᴄᴄᴜʀʀᴇᴅ: ${error.response?.data?.message || error.message || "ᴜɴᴋɴᴏᴡɴ ᴇʀʀᴏʀ"}`);
-  }
-});
-
-cmd({
-  pattern: "rmbg",
-  alias: ["removebg"],
-  react: '📸',
-  desc: "Scan and remove bg from images",
-  category: "img_edit",
-  use: ".rmbg [reply to image]",
-  filename: __filename
-}, async (conn, message, m,  { reply, mek }) => {
-  try {
-    const quotedMsg = message.quoted ? message.quoted : message;
-    const mimeType = (quotedMsg.msg || quotedMsg).mimetype || '';
-    
-    if (!mimeType || !mimeType.startsWith('image/')) {
-      return reply("ᴘʟᴇᴀsᴇ ʀᴇᴘʟʏ ᴛᴏ ᴀɴ ɪᴍᴀɢᴇ ꜰɪʟᴇ (ᴊᴘᴇɢ/ᴘɴɢ)");
-    }
-
-    const mediaBuffer = await quotedMsg.download();
-    const fileSize = formatBytes(mediaBuffer.length);
-    
-    let extension = '';
-    if (mimeType.includes('image/jpeg')) extension = '.jpg';
-    else if (mimeType.includes('image/png')) extension = '.png';
-    else {
-      return reply("ᴜɴsᴜᴘᴘᴏʀᴛᴇᴅ ɪᴍᴀɢᴇ ꜰᴏʀᴍᴀᴛ. ᴘʟᴇᴀsᴇ ᴜsᴇ ᴊᴘᴇɢ ᴏʀ ᴘɴɢ");
-    }
-
-    const tempFilePath = path.join(os.tmpdir(), `imgscan_${Date.now()}${extension}`);
-    fs.writeFileSync(tempFilePath, mediaBuffer);
-
-    const form = new FormData();
-    form.append('fileToUpload', fs.createReadStream(tempFilePath), `image${extension}`);
-    form.append('reqtype', 'fileupload');
-
-    const uploadResponse = await axios.post("https://catbox.moe/user/api.php", form, {
-      headers: form.getHeaders()
-    });
-
-    const imageUrl = uploadResponse.data;
-    fs.unlinkSync(tempFilePath);
-
-    if (!imageUrl) {
-      throw "ꜰᴀɪʟᴇᴅ ᴛᴏ ᴜᴘʟᴏᴀᴅ ɪᴍᴀɢᴇ ᴛᴏ ᴄᴀᴛʙᴏx";
-    }
-
-    const apiUrl = `https://apis.davidcyriltech.my.id/removebg?url=${encodeURIComponent(imageUrl)}`;
-    const response = await axios.get(apiUrl, { responseType: "arraybuffer" });
-
-    if (!response || !response.data) {
-      return reply("ᴇʀʀᴏʀ: ᴛʜᴇ ᴀᴘɪ ᴅɪᴅ ɴᴏᴛ ʀᴇᴛᴜʀɴ ᴀ ᴠᴀʟɪᴅ ɪᴍᴀɢᴇ. ᴛʀʏ ᴀɢᴀɪɴ ʟᴀᴛᴇʀ.");
-    }
-
-    const imageBuffer = Buffer.from(response.data, "binary");
-
-    await conn.sendMessage(m.chat, {
-      image: imageBuffer,
-      caption: `ʙᴀᴄᴋɢʀᴏᴜɴᴅ ʀᴇᴍᴏᴠᴇᴅ\n\n> *ᴘᴏᴡᴇʀᴇᴅ ʙʏ ᴘʀɪᴍᴇ ʀɪᴅᴢ*`
-    });
-
-  } catch (error) {
-    console.error("Rmbg Error:", error);
-    reply(`ᴀɴ ᴇʀʀᴏʀ ᴏᴄᴄᴜʀʀᴇᴅ: ${error.response?.data?.message || error.message || "ᴜɴᴋɴᴏᴡɴ ᴇʀʀᴏʀ"}`);
-  }
-});
-
-cmd({
-  pattern: "wanted",
-  alias: ["wantededit"],
-  react: '📸',
-  desc: "Scan and remove bg from images",
-  category: "img_edit",
-  use: ".wanted [reply to image]",
-  filename: __filename
-}, async (conn, message, m,  { reply, mek }) => {
-  try {
-    const quotedMsg = message.quoted ? message.quoted : message;
-    const mimeType = (quotedMsg.msg || quotedMsg).mimetype || '';
-    
-    if (!mimeType || !mimeType.startsWith('image/')) {
-      return reply("ᴘʟᴇᴀsᴇ ʀᴇᴘʟʏ ᴛᴏ ᴀɴ ɪᴍᴀɢᴇ ꜰɪʟᴇ (ᴊᴘᴇɢ/ᴘɴɢ)");
-    }
-
-    const mediaBuffer = await quotedMsg.download();
-    const fileSize = formatBytes(mediaBuffer.length);
-    
-    let extension = '';
-    if (mimeType.includes('image/jpeg')) extension = '.jpg';
-    else if (mimeType.includes('image/png')) extension = '.png';
-    else {
-      return reply("ᴜɴsᴜᴘᴘᴏʀᴛᴇᴅ ɪᴍᴀɢᴇ ꜰᴏʀᴍᴀᴛ. ᴘʟᴇᴀsᴇ ᴜsᴇ ᴊᴘᴇɢ ᴏʀ ᴘɴɢ");
-    }
-
-    const tempFilePath = path.join(os.tmpdir(), `imgscan_${Date.now()}${extension}`);
-    fs.writeFileSync(tempFilePath, mediaBuffer);
-
-    const form = new FormData();
-    form.append('fileToUpload', fs.createReadStream(tempFilePath), `image${extension}`);
-    form.append('reqtype', 'fileupload');
-
-    const uploadResponse = await axios.post("https://catbox.moe/user/api.php", form, {
-      headers: form.getHeaders()
-    });
-
-    const imageUrl = uploadResponse.data;
-    fs.unlinkSync(tempFilePath);
-
-    if (!imageUrl) {
-      throw "ꜰᴀɪʟᴇᴅ ᴛᴏ ᴜᴘʟᴏᴀᴅ ɪᴍᴀɢᴇ ᴛᴏ ᴄᴀᴛʙᴏx";
-    }
-
-    const apiUrl = `https://api.popcat.xyz/v2/wanted?image=${encodeURIComponent(imageUrl)}`;
-    const response = await axios.get(apiUrl, { responseType: "arraybuffer" });
-
-    if (!response || !response.data) {
-      return reply("ᴇʀʀᴏʀ: ᴛʜᴇ ᴀᴘɪ ᴅɪᴅ ɴᴏᴛ ʀᴇᴛᴜʀɴ ᴀ ᴠᴀʟɪᴅ ɪᴍᴀɢᴇ. ᴛʀʏ ᴀɢᴀɪɴ ʟᴀᴛᴇʀ.");
-    }
-
-    const imageBuffer = Buffer.from(response.data, "binary");
-
-    await conn.sendMessage(m.chat, {
-      image: imageBuffer,
-      caption: `> *ᴘᴏᴡᴇʀᴇᴅ ʙʏ ᴘʀɪᴍᴇ ʀɪᴅᴢ*`
-    });
-
-  } catch (error) {
-    console.error("Wanted Error:", error);
-    reply(`ᴀɴ ᴇʀʀᴏʀ ᴏᴄᴄᴜʀʀᴇᴅ: ${error.response?.data?.message || error.message || "ᴜɴᴋɴᴏᴡɴ ᴇʀʀᴏʀ"}`);
-  }
-});
 cmd({
     pattern: "list",
     alias: ["listcmd", "commands"],
     desc: "Show all available commands with descriptions",
-    category: "menu",
+    category: "info",
     react: "📜",
     filename: __filename
 }, async (conn, mek, m, { from, reply }) => {
@@ -2377,7 +1947,7 @@ cmd({
                 }
                 menuText += `│\n`
             })
-            
+
             menuText += `╰────────────────⳹\n`
         }
 
@@ -3363,7 +2933,7 @@ cmd({
   filename: __filename
 }, async (conn, mek, m, { args, isCreator, reply }) => {
   if (!isCreator) return reply("❗ ᴏɴʟʏ ᴛʜᴇ ʙᴏᴛ ᴏᴡɴᴇʀ ᴄᴀɴ ᴜsᴇ ᴛʜɪs ᴄᴏᴍᴍᴀɴᴅ.");
-  
+
   const emojiList = args.join(" ").trim();
   if (!emojiList) return reply("❌ ᴘʟᴇᴀsᴇ ᴘʀᴏᴠɪᴅᴇ ᴀ ᴄᴏᴍᴍᴀ-sᴇᴘᴀʀᴀᴛᴇᴅ ʟɪsᴛ ᴏꜰ ᴇᴍᴏᴊɪs.\n\nᴇxᴀᴍᴘʟᴇ:\n.sᴇᴛʀᴇᴀᴄᴛs 💖,💗,💘,💕");
 
