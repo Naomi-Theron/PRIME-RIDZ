@@ -185,8 +185,8 @@ const IMAGE_EDIT_COMMANDS = [
     { pattern: 'nokia',     alias: ['nokiaedit'],   api: 'https://api.popcat.xyz/v2/nokia?image={url}',          desc: 'Nokia-style filter' },
     { pattern: 'wanted',    alias: ['wantededit'],  api: 'https://api.popcat.xyz/v2/wanted?image={url}',         desc: 'Wanted poster' },
     {
-        pattern: 'rmbg',
-        alias: ['removebg'],
+        pattern: 'removebg',
+        alias: ['rmbg'],
         api: 'https://apis.davidcyriltech.my.id/removebg?url={url}',
         desc: 'Remove background',
         caption: `ʙᴀᴄᴋɢʀᴏᴜɴᴅ ʀᴇᴍᴏᴠᴇᴅ\n\n> *ᴘᴏᴡᴇʀᴇᴅ ʙʏ ᴘʀɪᴍᴇ ʀɪᴅᴢ*`
