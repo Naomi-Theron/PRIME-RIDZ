@@ -73,6 +73,75 @@ function isEnabled(value) {
     return value && value.toString().toLowerCase() === "true";
 }
 
+// ──────────────────────────────────────────────────────────────
+// CONFIG
+// ──────────────────────────────────────────────────────────────
+const CATBOX_USERHASH = 'c8f243c132e5d3e01b89bf27a';
+
+// ──────────────────────────────────────────────────────────────
+// Uploaders (Fallback Logic)
+// ──────────────────────────────────────────────────────────────
+async function uploadToCatbox(buffer, filename) {
+    const form = new FormData();
+    form.append('reqtype', 'fileupload');
+    form.append('userhash', CATBOX_USERHASH);
+    form.append('fileToUpload', buffer, { filename });
+
+    const res = await axios.post('https://catbox.moe/user/api.php', form, {
+        headers: form.getHeaders(),
+        timeout: 20000,
+        validateStatus: () => true,
+        maxBodyLength: Infinity
+    });
+
+    const body = typeof res.data === 'string' ? res.data.trim() : '';
+    if (res.status !== 200 || !body.startsWith('https://files.catbox.moe/')) {
+        throw new Error(`Catbox blocked (${res.status})`);
+    }
+    return body;
+}
+
+async function uploadToFileIo(buffer, filename) {
+    const form = new FormData();
+    form.append('file', buffer, { filename });
+
+    const res = await axios.post('https://file.io', form, {
+        headers: form.getHeaders(),
+        timeout: 20000
+    });
+
+    if (res.data && res.data.success && res.data.link) {
+        return res.data.link;
+    }
+    throw new Error('File.io upload failed');
+}
+
+async function uploadToUguu(buffer, filename) {
+    const form = new FormData();
+    form.append('files[]', buffer, { filename });
+
+    const res = await axios.post('https://uguu.se/upload.php', form, {
+        headers: form.getHeaders(),
+        timeout: 20000
+    });
+
+    if (res.data && res.data.success && res.data.files && res.data.files[0]?.url) {
+        return res.data.files[0].url;
+    }
+    throw new Error('Uguu upload failed');
+}
+
+async function uploadImage(buffer, filename) {
+    try {
+        return await uploadToCatbox(buffer, filename);
+    } catch (e1) {
+        try {
+            return await uploadToFileIo(buffer, filename);
+        } catch (e2) {
+            return await uploadToUguu(buffer, filename);
+        }
+    }
+}
 // Default AI states
 let AI_STATE = {
     IB: "false", // Inbox chats
@@ -3930,143 +3999,73 @@ cmd({
   }
 });
 
+
+
+// ──────────────────────────────────────────────────────────────
+// Command
+// ──────────────────────────────────────────────────────────────
 cmd({
-  pattern: "remini",
-  alias: ["enhance", "hq", "qualityup"],
-  react: '✨',
-  desc: "Enhance photo quality using Remini AI",
-  category: "utility",
-  use: ".remini [reply to image]",
-  filename: __filename
-}, async (client, message, { reply, quoted }) => {
-  try {
-    const quotedMsg = quoted || message;
-    const mimeType = (quotedMsg.msg || quotedMsg).mimetype || '';
-    
-    if (!mimeType || !mimeType.startsWith('image/')) {
-      return reply("ᴘʟᴇᴀsᴇ ʀᴇᴘʟʏ ᴛᴏ ᴀɴ ɪᴍᴀɢᴇ ꜰɪʟᴇ (ᴊᴘᴇɢ/ᴘɴɢ)");
+    pattern: "remini",
+    alias: ["enhance", "hq", "qualityup"],
+    react: '✨',
+    desc: "Enhance photo quality using Remini AI",
+    category: "utility",
+    use: ".remini [reply to image]",
+    filename: __filename
+}, async (conn, mek, m, { from, reply, quoted }) => {
+    try {
+        const quotedMsg = quoted || m;
+        const mimeType = (quotedMsg.msg || quotedMsg).mimetype || '';
+        
+        if (!mimeType || !mimeType.startsWith('image/')) {
+            return reply("ᴘʟᴇᴀsᴇ ʀᴇᴘʟʏ ᴛᴏ ᴀɴ ɪᴍᴀɢᴇ ꜰɪʟᴇ (ᴊᴘᴇɢ/ᴘɴɢ)");
+        }
+
+        await conn.sendMessage(from, { react: { text: '⏳', key: mek.key } });
+        await reply("🔄 ᴇɴʜᴀɴᴄɪɴɢ ɪᴍᴀɢᴇ ǫᴜᴀʟɪᴛʏ, ᴘʟᴇᴀsᴇ ᴡᴀɪᴛ...");
+
+        const mediaBuffer = await quotedMsg.download();
+        
+        let extension = '';
+        if (mimeType.includes('image/jpeg')) extension = '.jpg';
+        else if (mimeType.includes('image/png')) extension = '.png';
+        else {
+            return reply("ᴜɴsᴜᴘᴘᴏʀᴛᴇᴅ ɪᴍᴀɢᴇ ꜰᴏʀᴍᴀᴛ. ᴘʟᴇᴀsᴇ ᴜsᴇ ᴊᴘᴇɢ ᴏʀ ᴘɴɢ");
+        }
+
+        // 1) Upload source using the fallback logic
+        const filename = `remini_${Date.now()}${extension}`;
+        const imageUrl = await uploadImage(mediaBuffer, filename);
+
+        // 2) Call the Remini API
+        const apiUrl = `https://apis.davidcyriltech.my.id/remini?url=${encodeURIComponent(imageUrl)}`;
+        const response = await axios.get(apiUrl, { 
+            responseType: 'arraybuffer',
+            timeout: 60000,
+            validateStatus: () => true
+        });
+
+        if (response.status !== 200 || !response.data || response.data.length < 100) {
+            throw new Error(`ᴀᴘɪ ꜰᴀɪʟᴇᴅ (${response.status})`);
+        }
+
+        const outputBuffer = Buffer.from(response.data, 'binary');
+
+        // 3) Send result
+        await conn.sendMessage(from, {
+            image: outputBuffer,
+            caption: "✅ ɪᴍᴀɢᴇ ᴇɴʜᴀɴᴄᴇᴅ sᴜᴄᴄᴇssꜰᴜʟʟʏ!\n\n> *ᴘᴏᴡᴇʀᴇᴅ ʙʏ ᴘʀɪᴍᴇ ʀɪᴅᴢ*",
+        }, { quoted: anony });
+
+        await conn.sendMessage(from, { react: { text: '✅', key: mek.key } });
+
+    } catch (error) {
+        console.error('Remini Error:', error.message);
+        await conn.sendMessage(from, { react: { text: '❌', key: mek.key } });
+        await reply(`❌ ᴇʀʀᴏʀ: ${error.message || "ꜰᴀɪʟᴇᴅ ᴛᴏ ᴇɴʜᴀɴᴄᴇ ɪᴍᴀɢᴇ."}`);
     }
-
-    const mediaBuffer = await quotedMsg.download();
-    
-    let extension = '';
-    if (mimeType.includes('image/jpeg')) extension = '.jpg';
-    else if (mimeType.includes('image/png')) extension = '.png';
-    else {
-      return reply("ᴜɴsᴜᴘᴘᴏʀᴛᴇᴅ ɪᴍᴀɢᴇ ꜰᴏʀᴍᴀᴛ. ᴘʟᴇᴀsᴇ ᴜsᴇ ᴊᴘᴇɢ ᴏʀ ᴘɴɢ");
-    }
-
-    const tempFilePath = path.join(os.tmpdir(), `remini_input_${Date.now()}${extension}`);
-    fs.writeFileSync(tempFilePath, mediaBuffer);
-
-    const form = new FormData();
-    form.append('fileToUpload', fs.createReadStream(tempFilePath), `image${extension}`);
-    form.append('reqtype', 'fileupload');
-
-    const uploadResponse = await axios.post("https://catbox.moe/user/api.php", form, {
-      headers: form.getHeaders()
-    });
-
-    const imageUrl = uploadResponse.data;
-    fs.unlinkSync(tempFilePath);
-
-    if (!imageUrl) {
-      throw "ꜰᴀɪʟᴇᴅ ᴛᴏ ᴜᴘʟᴏᴀᴅ ɪᴍᴀɢᴇ ᴛᴏ ᴄᴀᴛʙᴏx";
-    }
-
-    const apiUrl = `https://apis.davidcyriltech.my.id/remini?url=${encodeURIComponent(imageUrl)}`;
-    const response = await axios.get(apiUrl, { 
-      responseType: 'arraybuffer',
-      timeout: 60000
-    });
-
-    if (!response.data || response.data.length < 100) {
-      throw "ᴀᴘɪ ʀᴇᴛᴜʀɴᴇᴅ ɪɴᴠᴀʟɪᴅ ɪᴍᴀɢᴇ ᴅᴀᴛᴀ";
-    }
-
-    const outputPath = path.join(os.tmpdir(), `remini_output_${Date.now()}.jpg`);
-    fs.writeFileSync(outputPath, response.data);
-
-    await reply("🔄 ᴇɴʜᴀɴᴄɪɴɢ ɪᴍᴀɢᴇ ǫᴜᴀʟɪᴛʏ...");
-    await client.sendMessage(message.chat, {
-      image: fs.readFileSync(outputPath),
-      caption: "✅ ɪᴍᴀɢᴇ ᴇɴʜᴀɴᴄᴇᴅ sᴜᴄᴄᴇssꜰᴜʟʟʏ!",
-    }, { quoted: message });
-
-    fs.unlinkSync(outputPath);
-
-  } catch (error) {
-    console.error('Remini Error:', error);
-    await reply(`❌ ᴇʀʀᴏʀ: ${error.message || "ꜰᴀɪʟᴇᴅ ᴛᴏ ᴇɴʜᴀɴᴄᴇ ɪᴍᴀɢᴇ. ᴛʜᴇ ɪᴍᴀɢᴇ ᴍɪɢʜᴛ ʙᴇ ᴛᴏᴏ ʟᴀʀɢᴇ ᴏʀ ᴛʜᴇ ᴀᴘɪ ɪs ᴜɴᴀᴠᴀɪʟᴀʙʟᴇ."}`);
-  }
 });
 
-cmd({
-  pattern: "removebg",
-  alias: ["rmbg", "nobg", "transparentbg"],
-  react: '🖼️',
-  desc: "Remove background from an image",
-  category: "utility",
-  use: ".removebg [reply to image]",
-  filename: __filename
-}, async (client, message, { reply, quoted }) => {
-  try {
-    const quotedMsg = quoted || message;
-    const mimeType = (quotedMsg.msg || quotedMsg).mimetype || '';
-    
-    if (!mimeType || !mimeType.startsWith('image/')) {
-      return reply("ᴘʟᴇᴀsᴇ ʀᴇᴘʟʏ ᴛᴏ ᴀɴ ɪᴍᴀɢᴇ ꜰɪʟᴇ (ᴊᴘᴇɢ/ᴘɴɢ)");
-    }
-
-    const mediaBuffer = await quotedMsg.download();
-    
-    let extension = '';
-    if (mimeType.includes('image/jpeg')) extension = '.jpg';
-    else if (mimeType.includes('image/png')) extension = '.png';
-    else {
-      return reply("ᴜɴsᴜᴘᴘᴏʀᴛᴇᴅ ɪᴍᴀɢᴇ ꜰᴏʀᴍᴀᴛ. ᴘʟᴇᴀsᴇ ᴜsᴇ ᴊᴘᴇɢ ᴏʀ ᴘɴɢ");
-    }
-
-    const tempFilePath = path.join(os.tmpdir(), `removebg_${Date.now()}${extension}`);
-    fs.writeFileSync(tempFilePath, mediaBuffer);
-
-    const form = new FormData();
-    form.append('fileToUpload', fs.createReadStream(tempFilePath), `image${extension}`);
-    form.append('reqtype', 'fileupload');
-
-    const uploadResponse = await axios.post("https://catbox.moe/user/api.php", form, {
-      headers: form.getHeaders()
-    });
-
-    const imageUrl = uploadResponse.data;
-    fs.unlinkSync(tempFilePath);
-
-    if (!imageUrl) {
-      throw "ꜰᴀɪʟᴇᴅ ᴛᴏ ᴜᴘʟᴏᴀᴅ ɪᴍᴀɢᴇ ᴛᴏ ᴄᴀᴛʙᴏx";
-    }
-
-    const apiUrl = `https://apis.davidcyriltech.my.id/removebg?url=${encodeURIComponent(imageUrl)}`;
-    const response = await axios.get(apiUrl, { responseType: 'arraybuffer' });
-
-    if (!response.data || response.data.length < 100) {
-      throw "ᴀᴘɪ ʀᴇᴛᴜʀɴᴇᴅ ɪɴᴠᴀʟɪᴅ ɪᴍᴀɢᴇ ᴅᴀᴛᴀ";
-    }
-
-    const outputPath = path.join(os.tmpdir(), `removebg_output_${Date.now()}.png`);
-    fs.writeFileSync(outputPath, response.data);
-
-    await client.sendMessage(message.chat, {
-      image: fs.readFileSync(outputPath),
-      caption: "ʙᴀᴄᴋɢʀᴏᴜɴᴅ ʀᴇᴍᴏᴠᴇᴅ sᴜᴄᴄᴇssꜰᴜʟʟʏ!",
-    }, { quoted: message });
-
-    fs.unlinkSync(outputPath);
-
-  } catch (error) {
-    console.error('RemoveBG Error:', error);
-    await reply(`❌ ᴇʀʀᴏʀ: ${error.message || error}`);
-  }
-});
 
 cmd({
     pattern: "restart",
