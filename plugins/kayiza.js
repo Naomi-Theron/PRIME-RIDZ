@@ -520,7 +520,6 @@ cmd({
   }
 });
 
-
 cmd({
     pattern: "apk",
     alias: ["app"],
@@ -536,28 +535,29 @@ async (conn, mek, m, { from, q, reply }) => {
         // ⏳ React - processing
         await conn.sendMessage(from, { react: { text: '⏳', key: mek.key } });
 
-        // Added User-Agent to bypass browser blocks
         const { data } = await axios.get(`https://apis.davidcyriltech.my.id/download/apk?text=${encodeURIComponent(q)}`, {
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                 'Accept': 'application/json'
             },
-            timeout: 30000,
-            validateStatus: () => true 
+            timeout: 30000
         });
 
-        if (!data || !data.success || !data.download_link) {
-            console.error("APK API Error Response:", data);
+        // Fixed to match the exact API response structure
+        if (!data || !data.status || !data.apk || !data.apk.downloadLink) {
             await conn.sendMessage(from, { react: { text: '❌', key: mek.key } });
             return reply("ᴀᴘᴘ ɴᴏᴛ ꜰᴏᴜɴᴅ ᴏʀ ᴀᴘɪ ᴇʀʀᴏʀ");
         }
 
+        const appName = data.apk.name || q;
+        const downloadLink = data.apk.downloadLink;
+
         // Send APK file directly
         await conn.sendMessage(from, {
-            document: { url: data.download_link },
+            document: { url: downloadLink },
             mimetype: "application/vnd.android.package-archive",
-            fileName: `${data.apk_name || q}.apk`,
-            caption: "ᴀᴘᴋ ꜱᴜᴄᴄᴇꜱꜱꜰᴜʟʟʏ ᴜᴘʟᴏᴀᴅᴇᴅ!*\n\n> *ᴄʀᴇᴀᴛᴇᴅ ʙʏ ᴘʀɪᴍᴇ ʀɪᴅᴢ*"
+            fileName: `${appName}.apk`,
+            caption: `*ᴀᴘᴋ ꜱᴜᴄᴄᴇꜱꜱꜰᴜʟʟʏ ᴜᴘʟᴏᴀᴅᴇᴅ!*\n\n📦 *ᴀᴘᴘ:* ${appName}\n🔖 *ᴠᴇʀꜱɪᴏɴ:* ${data.apk.lastUpdated || 'N/A'}\n\n> *ᴄʀᴇᴀᴛᴇᴅ ʙʏ ᴘʀɪᴍᴇ ʀɪᴅᴢ*`
         }, { quoted: anony });
 
         // ✅ React - success
