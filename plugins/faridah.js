@@ -7,7 +7,7 @@ const fs = require('fs');
 const { exec } = require('child_process');
 const { tmpdir } = require('os');
 const path = require('path');
-const { toAudio, toPTT } = require('../start/lib/converter');
+const { toAudio, toPTT } = require('../lib/converter');
 const { cmd } = require('../command');
 const { anony } = require('../lib/ridzcoder');
 
