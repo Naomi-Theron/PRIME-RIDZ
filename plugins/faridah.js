@@ -19,7 +19,7 @@ async function handleEphoto360(conn, mek, from, reply, text, prefix, endpoint, t
 
         await conn.sendMessage(from, {
             image: { url: data.result.image_url },
-            caption: `✨ *${title}*\n\n> ${global.wm || ''}`
+            caption: `✨ *${title}*\n\n> ${global.wm || 'ᴘʀɪᴍᴇ ʀɪᴅᴢ'}`
         }, { quoted: anony });
 
         await conn.sendMessage(from, { react: { text: "✅", key: mek.key } });
@@ -703,33 +703,6 @@ async (conn, mek, m, { reply }) => {
     } catch { reply("ᴇʀʀᴏʀ ꜰᴇᴛᴄʜɪɴɢ ʜɪꜱᴛᴏʀʏ."); }
 });
 
-// --- APK ---
-cmd({ pattern: "apk", react: "📥", desc: "Download APK from APKCombo", category: "downloader", use: ".apk <app name>", filename: __filename },
-async (conn, mek, m, { from, reply, q }) => {
-    try {
-        if (!q) return reply("ᴇxᴀᴍᴘʟᴇ: .ᴀᴘᴋ ᴛᴇʟᴇɢʀᴀᴍ");
-        const response = await fetch(`https://api.stiantech.me/api/tools/apkcombo?name=${encodeURIComponent(q)}`, {
-            headers: { 'Authorization': 'Bearer st_51dd79f78cc78fe21d6cdafed5a3a2f1' }
-        });
-        const json = await response.json();
-        if (!json.success || !json.result) return reply("ᴀᴘᴘ ɴᴏᴛ ꜰᴏᴜɴᴅ ᴏʀ ᴀᴘɪ ᴇʀʀᴏʀ.");
-
-        const app = json.result;
-        const caption = `📥 *ᴀᴘᴋ ᴅᴏᴡɴʟᴏᴀᴅ*\n\n📛 ɴᴀᴍᴇ: ${app.name || 'ɴ/ᴀ'}\n📦 ᴘᴀᴄᴋᴀɢᴇ: ${app.package || 'ɴ/ᴀ'}\n⭐ ʀᴀᴛɪɴɢ: ${app.rating || 'ɴ/ᴀ'}\n📥 ᴅᴏᴡɴʟᴏᴀᴅꜱ: ${app.downloads || 'ɴ/ᴀ'}\n📅 ᴜᴘᴅᴀᴛᴇᴅ: ${app.updated || 'ɴ/ᴀ'}\n📦 ꜱɪᴢᴇ: ${app.size || 'ɴ/ᴀ'}\n\n🔗 ${app.downloadUrl || app.link || 'ɴ/ᴀ'}\n\n> ᴘᴏᴡᴇʀᴇᴅ ʙʏ ʀɪᴅᴢ ᴄᴏᴅᴇʀ`;
-
-        if (app.icon) await conn.sendMessage(from, { image: { url: app.icon }, caption }, { quoted: anony });
-        else await conn.sendMessage(from, { text: caption }, { quoted: anony });
-
-        const downloadLink = app.downloadUrl || app.link;
-        if (downloadLink) {
-            await conn.sendMessage(from, {
-                document: { url: downloadLink },
-                fileName: `${app.name || 'app'}.apk`,
-                mimetype: "application/vnd.android.package-archive"
-            }, { quoted: anony });
-        }
-    } catch (e) { console.error('ᴀᴘᴋ ᴇʀʀᴏʀ:', e); reply("ᴇʀʀᴏʀ ꜰᴇᴛᴄʜɪɴɢ ᴀᴘᴘ."); }
-});
 
 // --- SUPPORT / FAMILY / RIDZCODER ---
 cmd({ pattern: "support", react: "🌋", desc: "Get support info", category: "info", use: ".support", filename: __filename },
