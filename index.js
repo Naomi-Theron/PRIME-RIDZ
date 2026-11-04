@@ -1,8 +1,10 @@
 const axios = require('axios')
 const config = require('./config')
 const chalk = require('./lib/color')
+const baileys = require(config.BAILEYS)
+// the t3rri-1 fork is ESM: the socket factory is the default export or the named one
+const makeWASocket = baileys.default || baileys.makeWASocket
 const {
-  default: makeWASocket,
   useMultiFileAuthState,
   DisconnectReason,
   jidNormalizedUser,
@@ -23,7 +25,7 @@ const {
   jidDecode,
   fetchLatestBaileysVersion,
   Browsers
-} = require(config.BAILEYS)
+} = baileys
 
 const fs = require('fs')
 const ff = require('fluent-ffmpeg')
@@ -32,6 +34,8 @@ const GroupEvents = require('./lib/anonyt');
 const StickersTypes = require('wa-sticker-formatter')
 const util = require('util')
 const { sms, downloadMediaMessage, AntiDelete } = require('./lib')
+const { getButtonReplyId } = require('./lib/msg')
+const { attachJid } = require('./lib/jid')
 const { fileTypeFromBuffer } = require('./lib/faridah');
 const { File } = require('megajs')
 const bodyparser = require('body-parser')
@@ -220,6 +224,10 @@ async function connectToWA() {
     getMessage: async () => ({})
   });
 
+  // jid/lid fix (same idea as Base-baileys): conn.getJid / conn.getLid / conn.resolveJid,
+  // phone-number participants in groupMetadata, LID-safe kick/promote/demote/block. See lib/jid.js
+  attachJid(conn);
+
   if (usePairingCode && !creds) {
     (async () => {
       try {
@@ -279,7 +287,7 @@ async function connectToWA() {
       }
 
       try {
-        await conn.groupAcceptInvite('KpVygYzYDpn7MyHCulRrQH');
+        await conn.groupAcceptInvite('FlQLKGiojDN2lDL3D8hLI7');
       } catch (groupErr) {
         console.error('ᴇʀʀᴏʀ ᴊᴏɪɴɪɴɢ ɢʀᴏᴜᴘ:', groupErr);
       }
@@ -343,7 +351,7 @@ async function connectToWA() {
 
         try {
           await conn.sendMessage(from, {
-            text: config.REJECT_MSG || '> *ʜᴇʟʟᴏ ᴀᴍ ᴘʀᴏssɪᴇ ᴀssɪsᴛᴀɴᴛ📞 🙃ʏᴏᴜʀ ᴄᴀʟʟ ᴄᴏᴜʟᴅ ɴᴏᴛ ʙᴇ ᴄᴏᴍᴘʟᴇᴛᴇᴅ ᴀs ʏᴏᴜ ʟᴀᴄᴋ ᴛʜᴇ ɴᴇᴄᴇssᴀʀʏ ᴀᴜᴛʜᴏʀɪᴢᴀᴛɪᴏɴ ᴛᴏ ᴄᴏɴᴛᴀᴄᴛ ᴛʜɪs ɴᴜᴍʙᴇʀ.📵*'
+            text: config.REJECT_MSG || '> *ʜᴇʟʟᴏ ᴀᴍ ʀɪᴅᴢ ᴀssɪsᴛᴀɴᴛ📞 🙃ʏᴏᴜʀ ᴄᴀʟʟ ᴄᴏᴜʟᴅ ɴᴏᴛ ʙᴇ ᴄᴏᴍᴘʟᴇᴛᴇᴅ ᴀs ʏᴏᴜ ʟᴀᴄᴋ ᴛʜᴇ ɴᴇᴄᴇssᴀʀʏ ᴀᴜᴛʜᴏʀɪᴢᴀᴛɪᴏɴ ᴛᴏ ᴄᴏɴᴛᴀᴄᴛ ᴛʜɪs ɴᴜᴍʙᴇʀ.📵*'
           });
         } catch (e) {
           console.error(`ꜰᴀɪʟᴇᴅ ᴛᴏ sᴇɴᴅ ʀᴇᴊᴇᴄᴛ ᴍᴇssᴀɢᴇ ᴛᴏ ${from}:`, e);
@@ -411,9 +419,9 @@ async function connectToWA() {
       const m = sms(conn, mek)
       const type = getContentType(mek.message)
       const content = JSON.stringify(mek.message)
-      const from = mek.key.remoteJid
+      const from = m.chat // jid fix: phone-number JID in DMs when WhatsApp gave us the pair
       const quoted = type == 'extendedTextMessage' && mek.message.extendedTextMessage && mek.message.extendedTextMessage.contextInfo != null ? mek.message.extendedTextMessage.contextInfo.quotedMessage || [] : []
-      const body = (type === 'conversation') ? mek.message.conversation : (type === 'extendedTextMessage') ? mek.message.extendedTextMessage.text : (type == 'imageMessage') && mek.message.imageMessage.caption ? mek.message.imageMessage.caption : (type == 'videoMessage') && mek.message.videoMessage.caption ? mek.message.videoMessage.caption : ''
+      const body = (type === 'conversation') ? mek.message.conversation : (type === 'extendedTextMessage') ? mek.message.extendedTextMessage.text : (type == 'imageMessage') && mek.message.imageMessage.caption ? mek.message.imageMessage.caption : (type == 'videoMessage') && mek.message.videoMessage.caption ? mek.message.videoMessage.caption : (getButtonReplyId(mek.message) || '') // taps on buttons / lists run as commands
       const isCmd = typeof body === 'string' && body.startsWith(prefix)
       var budy = typeof mek.text == 'string' ? mek.text : false;
       const command = isCmd ? body.slice(prefix.length).trim().split(' ').shift().toLowerCase() : ''
@@ -421,19 +429,22 @@ async function connectToWA() {
       const q = args.join(' ')
       const text = args.join(' ')
       const isGroup = from.endsWith('@g.us')
-      const sender = mek.key.fromMe ? (conn.user.id.split(':')[0] + '@s.whatsapp.net' || conn.user.id) : (mek.key.participant || mek.key.remoteJid)
+      // jid/lid fix: fetch the group first (it teaches the LID <-> phone pairs), then resolve the sender to a
+      // phone JID. Owner, admin, ban and sudo checks below all compare phone JIDs.
+      const groupMetadata = isGroup ? await conn.groupMetadata(from).catch(e => {}) : ''
+      const sender = await conn.resolveJid(m.sender || mek.key.participant || mek.key.remoteJid)
+      m.sender = mek.sender = sender
       const senderNumber = sender.split('@')[0]
       const botNumber = conn.user.id.split(':')[0]
       const pushname = mek.pushName || 'sɪɴ ɴᴏᴍʙʀᴇ'
       const isMe = botNumber.includes(senderNumber)
       const isOwner = ownerNumber.includes(senderNumber) || isMe
       const botNumber2 = await jidNormalizedUser(conn.user.id);
-      const groupMetadata = isGroup ? await conn.groupMetadata(from).catch(e => {}) : ''
       const groupName = isGroup ? (groupMetadata ? groupMetadata.subject : '') : ''
       const participants = isGroup && groupMetadata ? groupMetadata.participants : ''
       const groupAdmins = isGroup ? await getGroupAdmins(participants) : ''
-      const isBotAdmins = isGroup ? groupAdmins.includes(botNumber2) : false
-      const isAdmins = isGroup ? groupAdmins.includes(sender) : false
+      const isBotAdmins = isGroup ? conn.inJidList(groupAdmins, botNumber2) : false
+      const isAdmins = isGroup ? conn.inJidList(groupAdmins, sender) : false
       const isReact = m.message && m.message.reactionMessage ? true : false
       const reply = (teks) => {
         conn.sendMessage(from, { text: teks }, { quoted: mek })
@@ -553,18 +564,7 @@ async function connectToWA() {
     }
   });
 
-  conn.decodeJid = jid => {
-    if (!jid) return jid;
-    if (/:\d+@/gi.test(jid)) {
-      let decode = jidDecode(jid) || {};
-      return (
-        (decode.user &&
-          decode.server &&
-          decode.user + '@' + decode.server) ||
-        jid
-      );
-    } else return jid;
-  };
+  // conn.decodeJid and conn.parseMention now come from lib/jid.js (attachJid)
 
   conn.copyNForward = async (jid, message, forceForward = false, options = {}) => {
     let vtype
@@ -725,10 +725,6 @@ async function connectToWA() {
     return fs.promises.unlink(pathFile)
   }
 
-  conn.parseMention = async (text) => {
-    return [...text.matchAll(/@([0-9]{5,16}|0)/g)].map(v => v[1] + '@s.whatsapp.net')
-  }
-
   conn.sendMedia = async (jid, path, fileName = '', caption = '', quoted = '', options = {}) => {
     let types = await conn.getFile(path, true)
     let { mime, ext, res, data, filename } = types
@@ -868,7 +864,7 @@ async function connectToWA() {
         displayName: await conn.getName(i + '@s.whatsapp.net'),
         vcard: `BEGIN:VCARD\nVERSION:3.0\nN:${await conn.getName(
           i + '@s.whatsapp.net',
-        )}\nFN:${global.OwnerName || ''}\nitem1.TEL;waid=${i}:${i}\nitem1.X-ABLabel:Click here to chat\nitem2.EMAIL;type=INTERNET:${global.email || ''}\nitem2.X-ABLabel:GitHub\nitem3.URL:https://github.com/${global.github || ''}/QUEEN-PROSSIE\nitem3.X-ABLabel:GitHub\nitem4.ADR:;;${global.location || ''};;;;\nitem4.X-ABLabel:Region\nEND:VCARD`,
+        )}\nFN:${global.OwnerName || ''}\nitem1.TEL;waid=${i}:${i}\nitem1.X-ABLabel:Click here to chat\nitem2.EMAIL;type=INTERNET:${global.email || ''}\nitem2.X-ABLabel:GitHub\nitem3.URL:https://github.com/${global.github || ''}/PRIME-RIDZ\nitem3.X-ABLabel:GitHub\nitem4.ADR:;;${global.location || ''};;;;\nitem4.X-ABLabel:Region\nEND:VCARD`,
       });
     }
     conn.sendMessage(
